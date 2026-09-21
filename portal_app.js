@@ -29,18 +29,26 @@ function animateValue(id, end, duration = 1000) {
 // 2. AUTHENTICATION (SECURE VERCEL API)
 // ========================================================================
 async function authenticateUser() {
-    const cnicInput = document.getElementById('cnicInput').value.trim();
-    const btn = document.getElementById('loginBtn');
-    const errorMsg = document.getElementById('errorMsg');
+    // 1. Safely grab the input value
+    const cnicInputEl = document.getElementById('cnicInput');
+    const cnicInput = cnicInputEl ? cnicInputEl.value.trim() : "";
+    
+    // 2. Safely grab the button and error message elements
+    const btn = document.getElementById('loginBtn') || document.querySelector('button');
+    const errorMsg = document.getElementById('errorMsg') || document.getElementById('errorMessage');
 
+    // 3. Validation
     if (!cnicInput) {
-        errorMsg.innerText = "Please enter your CNIC.";
+        if (errorMsg) errorMsg.innerText = "Please enter your CNIC.";
         return;
     }
 
-    btn.innerText = "Verifying...";
-    btn.disabled = true;
-    errorMsg.innerText = "";
+    // 4. Loading State
+    if (btn) {
+        btn.innerText = "Verifying...";
+        btn.disabled = true;
+    }
+    if (errorMsg) errorMsg.innerText = "";
 
     try {
         const response = await fetch('/api/get-employee-data', {
@@ -56,29 +64,25 @@ async function authenticateUser() {
         db = await response.json();
         emp = db.myProfile;
 
-        document.getElementById('loginScreen').style.display = 'none';
-        document.getElementById('dashboardScreen').style.display = 'block';
+        // Switch screens
+        const loginScreen = document.getElementById('loginScreen');
+        const dashboardScreen = document.getElementById('dashboardScreen');
+        if (loginScreen) loginScreen.style.display = 'none';
+        if (dashboardScreen) dashboardScreen.style.display = 'block';
         
         renderDashboard();
 
     } catch (error) {
-        errorMsg.innerText = error.message || "Access Denied. Please check your CNIC.";
-        btn.innerText = "Secure Login \u2192";
-        btn.disabled = false;
-    }
-}
-
-function logout() {
-    db = {};
-    emp = null;
-    document.getElementById('cnicInput').value = "";
-    document.getElementById('loginScreen').style.display = 'flex';
-    document.getElementById('dashboardScreen').style.display = 'none';
-    
-    let btn = document.getElementById('loginBtn');
-    if (btn) {
-        btn.innerText = "Secure Login \u2192";
-        btn.disabled = false;
+        if (errorMsg) {
+            errorMsg.innerText = error.message || "Access Denied. Please check your CNIC.";
+        } else {
+            alert(error.message || "Access Denied. Please check your CNIC."); // Fallback if no error div exists
+        }
+        
+        if (btn) {
+            btn.innerText = "Secure Login \u2192";
+            btn.disabled = false;
+        }
     }
 }
 
