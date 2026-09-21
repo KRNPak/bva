@@ -158,6 +158,18 @@ function animateValue(id, end, duration = 1200) {
 // 4. DASHBOARD RENDERER & BUSINESS LOGIC
 // ========================================================================
 function renderDashboard() {
+    if (!emp) return;
+
+    // 1. ADD THESE LINES TO FIX THE ERROR
+    const baselineDate = new Date(); // Uses today's date for calculations
+    const joinDateStr = emp.joiningdate || emp.doj; 
+    const joinDate = joinDateStr ? new Date(joinDateStr) : new Date();
+    
+    // Calculate Tenure in Months (for the probation lock)
+    let tenureMonths = (baselineDate.getFullYear() - joinDate.getFullYear()) * 12;
+    tenureMonths -= joinDate.getMonth();
+    tenureMonths += baselineDate.getMonth();
+
     const empName = emp.employeename || "Staff Member";
     const empGrade = parseInt(getSafeNum(emp.positiongrade)) || 0;
     const baseSalary = getSafeNum(emp.basesalary);
