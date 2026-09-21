@@ -175,7 +175,6 @@ function renderDashboard() {
     const baseSalary = getSafeNum(emp.basesalary);
     
     const joinKey = Object.keys(emp).find(k => k.includes('join') || k.includes('date'));
-    const joinDate = new Date(emp[joinKey]);
     const today = new Date();
     
     let tenureMonths = 0; let tenureYears = 0;
