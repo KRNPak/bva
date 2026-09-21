@@ -177,29 +177,41 @@ function renderDashboard() {
     document.getElementById('empGradeDisplay').innerText = empGrade;
     document.getElementById('empJoinDisplay').innerText = isNaN(joinDate) ? "Unknown" : joinDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
-  // --- 1. PROVIDENT FUND ---
+ // --- 1. PROVIDENT FUND ---
     let pf = db.myPF || {};
-    let openingBal = getSafeNum(pf.openingbalance);
+    
+    // Fetch opening balances (assuming headers are "Opening PF" and "Opening Profit")
+    let openingPF = getSafeNum(pf.openingpf);
     let openingProfit = getSafeNum(pf.openingprofit);
     
-    let pfEmpCont = openingBal / 2;
-    let pfEmployerCont = openingBal / 2;
+    // Split Opening PF equally between Employee and Employer
+    let pfEmpCont = openingPF / 2;
+    let pfEmployerCont = openingPF / 2;
     let pfProfit = openingProfit;
 
-    // Loop through 12 months to add current year accumulations
-    for (let i = 0; i < 12; i++) {
-        let suffix = i === 0 ? '' : String(i);
-        pfEmpCont += getSafeNum(pf['employeecont' + suffix]);
-        pfEmployerCont += getSafeNum(pf['employercont' + suffix]);
-        pfProfit += (getSafeNum(pf['profitbafl' + suffix]) + getSafeNum(pf['profitfaysal' + suffix]) + getSafeNum(pf['profitubl' + suffix]));
+    // Loop through the 12 months using the new fixed spelling
+    const monthPrefixes = ['july', 'august', 'september', 'october', 'november', 'december', 'january', 'february', 'march', 'april', 'may', 'june'];
+    
+    for (let month of monthPrefixes) {
+        let mTotalCont = getSafeNum(pf[month + 'contribution']);
+        let mProfit = getSafeNum(pf[month + 'profit']);
+        
+        pfEmpCont += (mTotalCont / 2);
+        pfEmployerCont += (mTotalCont / 2);
+        pfProfit += mProfit;
     }
 
-    let pfWithdrawals = getSafeNum(pf.permanentwithdrawalsopening) + getSafeNum(pf.duringtheyear);
+    // Fetch current year withdrawals (assuming header is "Permanent withdrawals")
+    let pfWithdrawals = getSafeNum(pf.permanentwithdrawals);
 
-    if (tenureMonths < 3) {
+    // Probation lock logic
+    if (typeof tenureMonths !== 'undefined' && tenureMonths < 3) {
         pfEmployerCont = 0; 
-        document.getElementById('pfEmployerBox').style.opacity = '0.3';
-        document.getElementById('pfEmployerBox').title = "Employer match locked during probation.";
+        let empBox = document.getElementById('pfEmployerBox');
+        if(empBox) {
+            empBox.style.opacity = '0.3';
+            empBox.title = "Employer match locked during probation.";
+        }
     }
     
     let pfTotal = (pfEmpCont + pfEmployerCont + pfProfit) - pfWithdrawals;
@@ -209,36 +221,6 @@ function renderDashboard() {
     document.getElementById('pfEmployer').innerText = Math.round(pfEmployerCont).toLocaleString('en-PK');
     document.getElementById('pfProfit').innerText = Math.round(pfProfit).toLocaleString('en-PK');
     document.getElementById('pfWithdrawal').innerText = Math.round(pfWithdrawals).toLocaleString('en-PK');
-    // --- 2. ACCRUED TRAINING BUDGET ---
-    let trainingBaseline = getSafeNum(db.myTraining.accrued); 
-    let trainingExpenses = getSafeNum(db.myTraining.expense);
-    
-    const baselineDate = new Date('2026-06-30');
-    let annualLimit = trainingLimits[empGrade] || 0;
-    let newAccrual = today > baselineDate ? ((today - baselineDate) / (1000 * 60 * 60 * 24) / 365.25) * annualLimit : 0;
-    
-    let totalAccrued = Math.min(trainingBaseline + newAccrual, annualLimit * 3); 
-    let trainingAvailable = totalAccrued - trainingExpenses;
-    let overUtilizedTraining = 0;
-
-    if (trainingAvailable < 0) {
-        overUtilizedTraining = Math.abs(trainingAvailable);
-        trainingAvailable = 0;
-        document.getElementById('trainAvailable').style.color = "var(--krn-orange)";
-    }
-    
-    animateValue('trainAvailable', trainingAvailable);
-    
-    const trainTextContainer = document.getElementById('trainAccrued').parentElement;
-    trainTextContainer.innerHTML = `
-        <table style="width: 100%; border-collapse: collapse; font-size: 0.75rem;">
-            <tr><td style="color: var(--text-secondary); padding-right: 10px;">Baseline:</td><td><strong>${Math.round(trainingBaseline).toLocaleString('en-PK')}</strong></td></tr>
-            <tr><td style="color: var(--text-secondary); padding-right: 10px;">Accrued Year:</td><td><strong>${Math.round(newAccrual).toLocaleString('en-PK')}</strong></td></tr>
-            <tr><td style="color: var(--text-secondary); padding-right: 10px;">Total Accrued:</td><td><strong>${Math.round(totalAccrued).toLocaleString('en-PK')}</strong></td></tr>
-            <tr><td style="color: var(--text-secondary); padding-right: 10px;">Utilized:</td><td><strong>${Math.round(trainingExpenses).toLocaleString('en-PK')}</strong></td></tr>
-        </table>
-    `;
-
     // --- 3. GRATUITY PAYABLE ---
     let gratuityBaseline = getSafeNum(db.myGratuity.gratuitypayable);
     let gratAccrual = today > baselineDate ? (baseSalary * 0.5) * ((today - baselineDate) / (1000 * 60 * 60 * 24 * 365.25)) : 0;
@@ -381,26 +363,29 @@ function openPFModal() {
     let pf = db.myPF;
     if (!pf || Object.keys(pf).length === 0) return;
 
-    let openingBal = getSafeNum(pf.openingbalance);
+    let openingPF = getSafeNum(pf.openingpf);
     let openingProfit = getSafeNum(pf.openingprofit);
-    let currentEmpTotal = openingBal / 2;
-    let currentErTotal = openingBal / 2;
+    let currentEmpTotal = openingPF / 2;
+    let currentErTotal = openingPF / 2;
     let currentProfitTotal = openingProfit;
 
     const displayMonths = ['Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+    const monthPrefixes = ['july', 'august', 'september', 'october', 'november', 'december', 'january', 'february', 'march', 'april', 'may', 'june'];
+    
     let monthlyRows = '';
     
     for (let i = 0; i < 12; i++) {
-        let suffix = i === 0 ? '' : String(i);
-        let mEmp = getSafeNum(pf['employeecont' + suffix]);
-        let mEr = getSafeNum(pf['employercont' + suffix]);
-        let mProfit = getSafeNum(pf['profitbafl' + suffix]) + getSafeNum(pf['profitfaysal' + suffix]) + getSafeNum(pf['profitubl' + suffix]);
+        let mTotalCont = getSafeNum(pf[monthPrefixes[i] + 'contribution']);
+        let mProfit = getSafeNum(pf[monthPrefixes[i] + 'profit']);
+        
+        let mEmp = mTotalCont / 2;
+        let mEr = mTotalCont / 2;
         
         currentEmpTotal += mEmp;
         currentErTotal += mEr;
         currentProfitTotal += mProfit;
 
-        if (mEmp > 0 || mEr > 0 || mProfit > 0) {
+        if (mTotalCont > 0 || mProfit > 0) {
             monthlyRows += `
                 <tr style="border-bottom: 1px solid var(--border-color); background: rgba(0,0,0,0.01);">
                     <td style="padding:6px 0; color:var(--text-secondary);">${displayMonths[i]}</td>
@@ -412,7 +397,7 @@ function openPFModal() {
         }
     }
 
-    let pfWithdrawals = getSafeNum(pf.permanentwithdrawalsopening) + getSafeNum(pf.duringtheyear);
+    let pfWithdrawals = getSafeNum(pf.permanentwithdrawals);
     let grandTotal = (currentEmpTotal + currentErTotal + currentProfitTotal) - pfWithdrawals;
     let preference = pf.pfpreference || 'Conventional';
 
@@ -441,11 +426,11 @@ function openPFModal() {
             
             <table style="width:100%; border-collapse:collapse; font-size:0.85rem; margin-bottom:10px;">
                 <tr style="border-bottom: 1px dashed var(--border-color);">
-                    <td style="padding:8px 0; color:var(--text-secondary);">Opening Balance (Previous Yrs)</td>
-                    <td style="padding:8px 0; text-align:right;"><strong>${Math.round(openingBal).toLocaleString('en-PK')}</strong></td>
+                    <td style="padding:8px 0; color:var(--text-secondary);">Opening PF (Net of past withdrawals)</td>
+                    <td style="padding:8px 0; text-align:right;"><strong>${Math.round(openingPF).toLocaleString('en-PK')}</strong></td>
                 </tr>
                 <tr style="border-bottom: 1px solid var(--border-color);">
-                    <td style="padding:8px 0; color:var(--text-secondary);">Opening Profits (Previous Yrs)</td>
+                    <td style="padding:8px 0; color:var(--text-secondary);">Opening Profits</td>
                     <td style="padding:8px 0; text-align:right;"><strong>${Math.round(openingProfit).toLocaleString('en-PK')}</strong></td>
                 </tr>
             </table>
@@ -455,19 +440,19 @@ function openPFModal() {
             <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
                 <tbody>
                     <tr>
-                        <td style="padding:6px 0; color:var(--text-secondary);">Accumulated Employee Portion</td>
+                        <td style="padding:6px 0; color:var(--text-secondary);">Total Accumulated Emp Portion</td>
                         <td style="padding:6px 0; text-align:right; font-weight:bold;">${Math.round(currentEmpTotal).toLocaleString('en-PK')}</td>
                     </tr>
                     <tr>
-                        <td style="padding:6px 0; color:var(--text-secondary);">Accumulated Employer Portion</td>
+                        <td style="padding:6px 0; color:var(--text-secondary);">Total Accumulated Er Portion</td>
                         <td style="padding:6px 0; text-align:right; font-weight:bold;">${Math.round(currentErTotal).toLocaleString('en-PK')}</td>
                     </tr>
                     <tr>
-                        <td style="padding:6px 0; color:var(--text-secondary);">Accumulated Profits</td>
+                        <td style="padding:6px 0; color:var(--text-secondary);">Total Accumulated Profits</td>
                         <td style="padding:6px 0; text-align:right; font-weight:bold; color:var(--krn-green);">${Math.round(currentProfitTotal).toLocaleString('en-PK')}</td>
                     </tr>
                     <tr style="border-bottom: 1px solid var(--border-color);">
-                        <td style="padding:6px 0; color:var(--krn-orange);">Less: Withdrawals</td>
+                        <td style="padding:6px 0; color:var(--krn-orange);">Less: Current Year Withdrawals</td>
                         <td style="padding:6px 0; text-align:right; font-weight:bold; color:var(--krn-orange);">- ${Math.round(pfWithdrawals).toLocaleString('en-PK')}</td>
                     </tr>
                     <tr style="background:rgba(0,0,0,0.02);">
@@ -484,6 +469,7 @@ function openPFModal() {
     `;
     modal.style.display = 'flex';
 }
+
 // ========================================================================
 // 5. MODAL GENERATOR (AMORTIZATION)
 // ========================================================================
