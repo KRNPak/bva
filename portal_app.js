@@ -168,7 +168,7 @@ function renderDashboard() {
     // Calculate Tenure in Months (for the probation lock)
     let tenureMonths = (baselineDate.getFullYear() - joinDate.getFullYear()) * 12;
     tenureMonths -= joinDate.getMonth();
-    tenureMonths += baselineDate.getMonth();
+    //tenureMonths += baselineDate.getMonth();
 
     const empName = emp.employeename || "Staff Member";
     const empGrade = parseInt(getSafeNum(emp.positiongrade)) || 0;
