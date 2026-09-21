@@ -83,7 +83,7 @@ function getSafeNum(val) {
 }
 
 // ========================================================================
-// 3. AUTHENTICATION & DATA LOADING
+// 3. SECURE AUTHENTICATION & DATA LOADING (SERVERLESS API)
 // ========================================================================
 async function authenticateUser() {
     const cnicInput = document.getElementById('cnicInput').value.trim();
@@ -99,43 +99,27 @@ async function authenticateUser() {
     btn.innerText = "Decrypting...";
 
     try {
-        const path = `Data/${CURRENT_YEAR}/HR_Data`;
-        const cb = '?v=' + new Date().getTime(); 
-        
-        const masterRes = await fetch(`${path}/Staff_Master.csv${cb}`);
-        if (!masterRes.ok) throw new Error(`Staff_Master.csv not found.`);
-        const masterData = parseCSV(await masterRes.text());
-        
-        emp = masterData.find(r => {
-            let cnicKey = Object.keys(r).find(k => k.includes('cnic'));
-            if (!cnicKey) return false;
-            return String(r[cnicKey]).replace(/[^0-9]/g, '') === cnicInput;
+        const response = await fetch('/api/get-employee-data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cnic: cnicInput })
         });
 
-        if (!emp) throw new Error("CNIC not found in Master File.");
-        
-        const files = ['PF', 'Advances', 'Training', 'Gratuity', 'Tax', 'CPR_Master'];
-        for (let file of files) {
-            try {
-                const res = await fetch(`${path}/${file}.csv${cb}`);
-                db[file] = res.ok ? parseCSV(await res.text()) : [];
-            } catch (e) { db[file] = []; }
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error || 'Failed to authenticate.');
         }
 
-        let empCodeKey = Object.keys(emp).find(k => k === 'employeecode' || k === 'empcode');
-        let empCode = empCodeKey ? String(emp[empCodeKey]).trim() : null;
-
-        const matchCode = (r) => {
-            if (!r) return false;
-            let cleanKey = Object.keys(r).find(k => k === 'employeecode' || k === 'empcode' || k === 'code');
-            return cleanKey ? String(r[cleanKey]).trim() === empCode : false;
-        };
-
-        db.myPF = (db.PF || []).find(matchCode) || {};
-        db.myAdvances = (db.Advances || []).filter(matchCode) || [];
-        db.myTraining = (db.Training || []).find(matchCode) || {};
-        db.myGratuity = (db.Gratuity || []).find(matchCode) || {};
-        db.myTax = (db.Tax || []).find(matchCode) || {};
+        const data = await response.json();
+        
+        // Populate state directly from isolated server response
+        emp = data.emp;
+        db.myPF = data.myPF;
+        db.myAdvances = data.myAdvances;
+        db.myTraining = data.myTraining;
+        db.myGratuity = data.myGratuity;
+        db.myTax = data.myTax;
+        db.CPR_Master = data.cprMaster;
 
         renderDashboard();
         
@@ -148,15 +132,6 @@ async function authenticateUser() {
         btn.innerText = "Secure Login →";
     }
 }
-
-function logout() {
-    emp = null; db = {};
-    document.getElementById('cnicInput').value = "";
-    document.getElementById('portalDashboard').style.display = "none";
-    document.getElementById('loginGate').style.display = "flex";
-    document.getElementById('loginGate').querySelector('.login-btn').innerText = "Secure Login →";
-}
-
 // ========================================================================
 // UI ANIMATION ENGINE
 // ========================================================================
@@ -202,23 +177,38 @@ function renderDashboard() {
     document.getElementById('empGradeDisplay').innerText = empGrade;
     document.getElementById('empJoinDisplay').innerText = isNaN(joinDate) ? "Unknown" : joinDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
-    // --- 1. PROVIDENT FUND ---
-    let pfEmpCont = getSafeNum(db.myPF.totalaccumulatedcontributons) / 2; 
-    let pfEmployerCont = pfEmpCont;
-    let pfProfit = getSafeNum(db.myPF.totalaccumulatedprofit);
+  // --- 1. PROVIDENT FUND ---
+    let pf = db.myPF || {};
+    let openingBal = getSafeNum(pf.openingbalance);
+    let openingProfit = getSafeNum(pf.openingprofit);
     
+    let pfEmpCont = openingBal / 2;
+    let pfEmployerCont = openingBal / 2;
+    let pfProfit = openingProfit;
+
+    // Loop through 12 months to add current year accumulations
+    for (let i = 0; i < 12; i++) {
+        let suffix = i === 0 ? '' : String(i);
+        pfEmpCont += getSafeNum(pf['employeecont' + suffix]);
+        pfEmployerCont += getSafeNum(pf['employercont' + suffix]);
+        pfProfit += (getSafeNum(pf['profitbafl' + suffix]) + getSafeNum(pf['profitfaysal' + suffix]) + getSafeNum(pf['profitubl' + suffix]));
+    }
+
+    let pfWithdrawals = getSafeNum(pf.permanentwithdrawalsopening) + getSafeNum(pf.duringtheyear);
+
     if (tenureMonths < 3) {
         pfEmployerCont = 0; 
         document.getElementById('pfEmployerBox').style.opacity = '0.3';
         document.getElementById('pfEmployerBox').title = "Employer match locked during probation.";
     }
     
-    let pfTotal = pfEmpCont + pfEmployerCont + pfProfit;
+    let pfTotal = (pfEmpCont + pfEmployerCont + pfProfit) - pfWithdrawals;
+    
     animateValue('pfTotal', pfTotal);
-    document.getElementById('pfEmployee').innerText = pfEmpCont.toLocaleString('en-PK');
-    document.getElementById('pfEmployer').innerText = pfEmployerCont.toLocaleString('en-PK');
-    document.getElementById('pfProfit').innerText = pfProfit.toLocaleString('en-PK');
-
+    document.getElementById('pfEmployee').innerText = Math.round(pfEmpCont).toLocaleString('en-PK');
+    document.getElementById('pfEmployer').innerText = Math.round(pfEmployerCont).toLocaleString('en-PK');
+    document.getElementById('pfProfit').innerText = Math.round(pfProfit).toLocaleString('en-PK');
+    document.getElementById('pfWithdrawal').innerText = Math.round(pfWithdrawals).toLocaleString('en-PK');
     // --- 2. ACCRUED TRAINING BUDGET ---
     let trainingBaseline = getSafeNum(db.myTraining.accrued); 
     let trainingExpenses = getSafeNum(db.myTraining.expense);
@@ -391,40 +381,104 @@ function openPFModal() {
     let pf = db.myPF;
     if (!pf || Object.keys(pf).length === 0) return;
 
-    let empCont = getSafeNum(pf.totalaccumulatedcontributons) / 2;
-    let erCont = empCont; // Matching employer contribution
-    let profit = getSafeNum(pf.totalaccumulatedprofit);
-    let total = empCont + erCont + profit;
+    let openingBal = getSafeNum(pf.openingbalance);
+    let openingProfit = getSafeNum(pf.openingprofit);
+    let currentEmpTotal = openingBal / 2;
+    let currentErTotal = openingBal / 2;
+    let currentProfitTotal = openingProfit;
+
+    const displayMonths = ['Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+    let monthlyRows = '';
+    
+    for (let i = 0; i < 12; i++) {
+        let suffix = i === 0 ? '' : String(i);
+        let mEmp = getSafeNum(pf['employeecont' + suffix]);
+        let mEr = getSafeNum(pf['employercont' + suffix]);
+        let mProfit = getSafeNum(pf['profitbafl' + suffix]) + getSafeNum(pf['profitfaysal' + suffix]) + getSafeNum(pf['profitubl' + suffix]);
+        
+        currentEmpTotal += mEmp;
+        currentErTotal += mEr;
+        currentProfitTotal += mProfit;
+
+        if (mEmp > 0 || mEr > 0 || mProfit > 0) {
+            monthlyRows += `
+                <tr style="border-bottom: 1px solid var(--border-color); background: rgba(0,0,0,0.01);">
+                    <td style="padding:6px 0; color:var(--text-secondary);">${displayMonths[i]}</td>
+                    <td style="padding:6px 0; text-align:right;">${Math.round(mEmp).toLocaleString('en-PK')}</td>
+                    <td style="padding:6px 0; text-align:right;">${Math.round(mEr).toLocaleString('en-PK')}</td>
+                    <td style="padding:6px 0; text-align:right; color:var(--krn-green);">${Math.round(mProfit).toLocaleString('en-PK')}</td>
+                </tr>
+            `;
+        }
+    }
+
+    let pfWithdrawals = getSafeNum(pf.permanentwithdrawalsopening) + getSafeNum(pf.duringtheyear);
+    let grandTotal = (currentEmpTotal + currentErTotal + currentProfitTotal) - pfWithdrawals;
     let preference = pf.pfpreference || 'Conventional';
 
+    let monthlyTableHtml = monthlyRows ? `
+        <div style="margin-top: 15px; margin-bottom: 15px; max-height: 160px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 6px;">
+            <table style="width:100%; border-collapse:collapse; font-size:0.8rem;">
+                <thead style="background: var(--bg-page); position: sticky; top: 0;">
+                    <tr>
+                        <th style="padding:8px 5px; text-align:left; color:var(--text-secondary);">Current Year</th>
+                        <th style="padding:8px 5px; text-align:right; color:var(--text-secondary);">Emp Cont.</th>
+                        <th style="padding:8px 5px; text-align:right; color:var(--text-secondary);">Er Cont.</th>
+                        <th style="padding:8px 5px; text-align:right; color:var(--text-secondary);">Profit</th>
+                    </tr>
+                </thead>
+                <tbody style="padding: 0 5px;">${monthlyRows}</tbody>
+            </table>
+        </div>
+    ` : '';
+
     modal.innerHTML = `
-        <div style="background:var(--bg-card); padding:30px; border-radius:12px; width:90%; max-width:500px; color:var(--text-primary); box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
-            <h2 style="margin:0 0 5px 0; color:var(--krn-blue);">Provident Fund Ledger</h2>
-            <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:20px;">Fund Preference: <strong>${preference}</strong></p>
+        <div style="background:var(--bg-card); padding:25px; border-radius:12px; width:90%; max-width:550px; color:var(--text-primary); box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+                <h2 style="margin:0; color:var(--krn-blue);">Provident Fund Ledger</h2>
+                <span style="font-size:0.75rem; background:var(--krn-blue); color:white; padding:3px 8px; border-radius:4px;">${preference}</span>
+            </div>
             
-            <table style="width:100%; border-collapse:collapse; font-size:0.95rem;">
+            <table style="width:100%; border-collapse:collapse; font-size:0.85rem; margin-bottom:10px;">
+                <tr style="border-bottom: 1px dashed var(--border-color);">
+                    <td style="padding:8px 0; color:var(--text-secondary);">Opening Balance (Previous Yrs)</td>
+                    <td style="padding:8px 0; text-align:right;"><strong>${Math.round(openingBal).toLocaleString('en-PK')}</strong></td>
+                </tr>
+                <tr style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding:8px 0; color:var(--text-secondary);">Opening Profits (Previous Yrs)</td>
+                    <td style="padding:8px 0; text-align:right;"><strong>${Math.round(openingProfit).toLocaleString('en-PK')}</strong></td>
+                </tr>
+            </table>
+
+            ${monthlyTableHtml}
+            
+            <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
                 <tbody>
-                    <tr style="border-bottom: 1px solid var(--border-color);">
-                        <td style="padding:12px 0; color:var(--text-secondary);">Employee Contribution</td>
-                        <td style="padding:12px 0; text-align:right; font-weight:bold;">${Math.round(empCont).toLocaleString('en-PK')}</td>
+                    <tr>
+                        <td style="padding:6px 0; color:var(--text-secondary);">Accumulated Employee Portion</td>
+                        <td style="padding:6px 0; text-align:right; font-weight:bold;">${Math.round(currentEmpTotal).toLocaleString('en-PK')}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:6px 0; color:var(--text-secondary);">Accumulated Employer Portion</td>
+                        <td style="padding:6px 0; text-align:right; font-weight:bold;">${Math.round(currentErTotal).toLocaleString('en-PK')}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:6px 0; color:var(--text-secondary);">Accumulated Profits</td>
+                        <td style="padding:6px 0; text-align:right; font-weight:bold; color:var(--krn-green);">${Math.round(currentProfitTotal).toLocaleString('en-PK')}</td>
                     </tr>
                     <tr style="border-bottom: 1px solid var(--border-color);">
-                        <td style="padding:12px 0; color:var(--text-secondary);">Employer Contribution</td>
-                        <td style="padding:12px 0; text-align:right; font-weight:bold;">${Math.round(erCont).toLocaleString('en-PK')}</td>
+                        <td style="padding:6px 0; color:var(--krn-orange);">Less: Withdrawals</td>
+                        <td style="padding:6px 0; text-align:right; font-weight:bold; color:var(--krn-orange);">- ${Math.round(pfWithdrawals).toLocaleString('en-PK')}</td>
                     </tr>
-                    <tr style="border-bottom: 1px solid var(--border-color);">
-                        <td style="padding:12px 0; color:var(--text-secondary);">Accumulated Profit</td>
-                        <td style="padding:12px 0; text-align:right; font-weight:bold; color:var(--krn-green);">${Math.round(profit).toLocaleString('en-PK')}</td>
-                    </tr>
-                    <tr style="border-bottom: 2px solid var(--krn-blue); background:rgba(0,0,0,0.02);">
-                        <td style="padding:15px 5px; font-weight:bold; color:var(--krn-blue);">Total Accumulated Balance</td>
-                        <td style="padding:15px 5px; text-align:right; font-weight:bold; color:var(--krn-blue); font-size:1.1rem;">${Math.round(total).toLocaleString('en-PK')} PKR</td>
+                    <tr style="background:rgba(0,0,0,0.02);">
+                        <td style="padding:15px 5px; font-weight:bold; color:var(--krn-blue);">Net Closing Balance</td>
+                        <td style="padding:15px 5px; text-align:right; font-weight:bold; color:var(--krn-blue); font-size:1.1rem;">${Math.round(grandTotal).toLocaleString('en-PK')} PKR</td>
                     </tr>
                 </tbody>
             </table>
             
-            <div style="text-align:right; margin-top:25px;">
-                <button onclick="document.getElementById('pfModal').style.display='none'" style="background:var(--krn-orange); color:white; border:none; padding:10px 20px; border-radius:6px; cursor:pointer; font-weight:bold;">Close</button>
+            <div style="text-align:right; margin-top:20px;">
+                <button onclick="document.getElementById('pfModal').style.display='none'" style="background:var(--krn-orange); color:white; border:none; padding:8px 20px; border-radius:6px; cursor:pointer; font-weight:bold;">Close</button>
             </div>
         </div>
     `;
@@ -572,17 +626,35 @@ function generateTaxPDF() {
 // ========================================================================
 function toggleTheme() {
     const body = document.body;
+    const label = document.getElementById('themeLabel');
+    const checkbox = document.getElementById('themeToggleCheckbox');
+    
     if (body.classList.contains('light-mode')) {
         body.classList.replace('light-mode', 'dark-mode');
         localStorage.setItem('krnTheme', 'dark-mode');
+        if(label) label.innerText = 'DARK';
+        if(checkbox) checkbox.checked = true;
     } else {
         body.classList.replace('dark-mode', 'light-mode');
         localStorage.setItem('krnTheme', 'light-mode');
+        if(label) label.innerText = 'LIGHT';
+        if(checkbox) checkbox.checked = false;
     }
 }
 
-// Auto-load the saved theme when the portal opens
 (function initializeTheme() {
     const savedTheme = localStorage.getItem('krnTheme') || 'light-mode';
     document.body.className = savedTheme;
+    
+    setTimeout(() => {
+        const label = document.getElementById('themeLabel');
+        const checkbox = document.getElementById('themeToggleCheckbox');
+        if (savedTheme === 'dark-mode') {
+            if(label) label.innerText = 'DARK';
+            if(checkbox) checkbox.checked = true;
+        } else {
+            if(label) label.innerText = 'LIGHT';
+            if(checkbox) checkbox.checked = false;
+        }
+    }, 100);
 })();
