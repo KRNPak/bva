@@ -175,7 +175,6 @@ function renderDashboard() {
     const joinKey = Object.keys(emp).find(k => k.includes('join') || k.includes('date'));
     const today = new Date();
     
-    let tenureMonths = 0; let tenureYears = 0;
     if (!isNaN(joinDate)) {
         tenureMonths = (today.getFullYear() - joinDate.getFullYear()) * 12 + (today.getMonth() - joinDate.getMonth());
         tenureYears = tenureMonths / 12;
