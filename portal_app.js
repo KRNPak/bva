@@ -434,6 +434,22 @@ function toggleTheme() {
 // ========================================================================
 // 6. TAX CERTIFICATE GENERATION
 // ========================================================================
+// Helper to convert total tax number into words for the certificate
+function numberToWords(num) {
+    let a = ['','One ','Two ','Three ','Four ', 'Five ','Six ','Seven ','Eight ','Nine ','Ten ','Eleven ','Twelve ','Thirteen ','Fourteen ','Fifteen ','Sixteen ','Seventeen ','Eighteen ','Nineteen '];
+    let b = ['', '', 'Twenty','Thirty','Forty','Fifty', 'Sixty','Seventy','Eighty','Ninety'];
+    if ((num = num.toString()).length > 9) return 'overflow';
+    let n = ('000000000' + num).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
+    if (!n) return ''; 
+    let str = '';
+    str += (n[1] != 0) ? (a[Number(n[1])] || b[n[1][0]] + ' ' + a[n[1][1]]) + 'Crore ' : '';
+    str += (n[2] != 0) ? (a[Number(n[2])] || b[n[2][0]] + ' ' + a[n[2][1]]) + 'Lakh ' : '';
+    str += (n[3] != 0) ? (a[Number(n[3])] || b[n[3][0]] + ' ' + a[n[3][1]]) + 'Thousand ' : '';
+    str += (n[4] != 0) ? (a[Number(n[4])] || b[n[4][0]] + ' ' + a[n[4][1]]) + 'Hundred ' : '';
+    str += (n[5] != 0) ? ((str != '') ? 'and ' : '') + (a[Number(n[5])] || b[n[5][0]] + ' ' + a[n[5][1]]) : '';
+    return str.trim();
+}
+
 function generateTaxPDF() {
     if (!emp) return;
     const template = document.getElementById('pdfTemplate');
@@ -442,46 +458,120 @@ function generateTaxPDF() {
         return;
     }
     
+    // Select selected year text
     let yearSelect = document.getElementById('taxYearSelect');
-    let yearText = yearSelect ? yearSelect.options[yearSelect.selectedIndex].text : "Tax Year";
-    let empName = document.getElementById('empNameDisplay')?.innerText || 'Employee';
+    let yearText = yearSelect ? yearSelect.options[yearSelect.selectedIndex].text : "July 2026 - June 2027";
+    
+    // Data Extraction
+    let rawTax = db.myTax?._raw || db.myTax || {};
+    let empName = rawTax['Employee Name'] || document.getElementById('empNameDisplay')?.innerText || 'Employee';
     let cnic = document.getElementById('cnicInput')?.value || 'N/A';
     
+    // Format CNIC with dashes (e.g. 37405-0226396-0)
+    let formattedCnic = cnic;
+    if (cnic.length === 13) formattedCnic = `${cnic.substring(0, 5)}-${cnic.substring(5, 12)}-${cnic.substring(12, 13)}`;
+    
+    let cprMaster = db.cprMaster || [];
+    let grossSalary = getSafeNum(rawTax['Gross Salary'] || rawTax['Taxable Income'] || rawTax['Taxable Salary']) || 0;
+    
+    // Generate Monthly Table
+    let totalTax = 0;
+    const months = ['Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+    let rowsHTML = '';
+    
+    months.forEach((m) => {
+        // Find CPR for this month
+        let cprObj = cprMaster.find(c => {
+             let cMonth = c._raw?.['Month'] || c.month || '';
+             return cMonth.toLowerCase().startsWith(m.toLowerCase());
+        }) || {};
+        let cprRef = cprObj._raw?.['CPR_Number'] || cprObj.cpr_number || '-';
+        
+        // Find Tax Amount for this month in myTax
+        let mTaxKey = Object.keys(rawTax).find(k => k.toLowerCase().startsWith(m.toLowerCase()) && !k.toLowerCase().includes('cpr'));
+        let mTax = getSafeNum(mTaxKey ? rawTax[mTaxKey] : 0);
+        
+        totalTax += mTax;
+        
+        rowsHTML += `
+            <tr style="border-bottom: 1px solid #ddd;">
+                <td style="padding: 6px 12px; border: 1px solid #ddd;">${m}</td>
+                <td style="padding: 6px 12px; border: 1px solid #ddd;">${cprRef}</td>
+                <td style="padding: 6px 12px; border: 1px solid #ddd; text-align: right;">${Math.round(mTax).toLocaleString('en-PK')}</td>
+            </tr>
+        `;
+    });
+    
+    let taxWords = numberToWords(Math.round(totalTax)) || "Zero";
+    let formattedToday = new Date().toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' });
+    
     template.innerHTML = `
-        <div style="padding: 40px; font-family: Arial, sans-serif; color: #333; background: white;">
-            <div style="text-align: center; border-bottom: 2px solid #005A9C; margin-bottom: 30px; padding-bottom: 20px;">
-                <h2 style="color: #005A9C; margin: 0;">KARANDAAZ PAKISTAN</h2>
-                <h3 style="margin: 10px 0 5px 0;">Section 149 Tax Deduction Certificate</h3>
-                <p style="margin: 0; font-size: 1.1rem; color: #666;">${yearText}</p>
+        <div style="padding: 40px; font-family: 'Arial', sans-serif; color: #333; background: white; font-size: 13px; line-height: 1.5;">
+            
+            <div style="text-align: center; margin-bottom: 25px;">
+                <img src="https://www.karandaaz.com.pk/_next/static/media/navbar-logo.0ebe1390.svg" style="height: 50px; margin-bottom: 10px;" alt="Karandaaz">
+                <h3 style="margin: 0; font-size: 16px; text-decoration: underline;">CERTIFICATE OF COLLECTION OR DEDUCTION OF INCOME TAX</h3>
+                <h4 style="margin: 5px 0 0 0; font-size: 14px;">UNDER RULE 42</h4>
             </div>
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 1.1rem;">
-                <tr>
-                    <td style="padding: 12px; border: 1px solid #ddd; background: #f9f9f9; width: 40%; font-weight: bold;">Employee Name</td>
-                    <td style="padding: 12px; border: 1px solid #ddd;">${empName}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 12px; border: 1px solid #ddd; background: #f9f9f9; font-weight: bold;">CNIC</td>
-                    <td style="padding: 12px; border: 1px solid #ddd;">${cnic}</td>
-                </tr>
-            </table>
-            <p style="font-size: 1rem; line-height: 1.6;">
-                This is to certify that Karandaaz Pakistan has deducted tax under Section 149 of the Income Tax Ordinance, 2001, 
-                from the salary of the above-mentioned employee for the period <strong>${yearText}</strong>.
+            
+            <p style="text-align: justify; margin-bottom: 20px;">
+                Certified that PKR. <strong>${Math.round(totalTax).toLocaleString('en-PK')}</strong> (Rupees ${taxWords} only.) on account of
+                Income Tax has been deducted/collected on amount of PKR. <strong>${Math.round(grossSalary).toLocaleString('en-PK')}</strong> from <strong>${empName}</strong> having CNIC
+                Number <strong>${formattedCnic}</strong> during the financial year <strong>${yearText}</strong> under section 149
+                (Tax on Salary Income) of Pakistan Income Tax Ordinance, 2001.
             </p>
+            <p style="text-align: justify; margin-bottom: 20px;">
+                This is to further certify that the tax collected/deducted by KARANDAAZ PAKISTAN (NTN:4369428-4)
+                has been deposited in different branches of National Bank of Pakistan and State Bank of Pakistan.<br>
+                Reference CPR's are as follows:
+            </p>
+            
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 12px; text-align: left;">
+                <thead>
+                    <tr style="background-color: #f9f9f9;">
+                        <th style="padding: 8px 12px; border: 1px solid #ddd; width: 20%;">Month</th>
+                        <th style="padding: 8px 12px; border: 1px solid #ddd; width: 50%;">CPR Reference No.</th>
+                        <th style="padding: 8px 12px; border: 1px solid #ddd; text-align: right; width: 30%;">Tax Withheld (PKR amount)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rowsHTML}
+                    <tr style="font-weight: bold; background-color: #f9f9f9;">
+                        <td colspan="2" style="padding: 8px 12px; border: 1px solid #ddd; text-align: right;">TOTAL</td>
+                        <td style="padding: 8px 12px; border: 1px solid #ddd; text-align: right;">${Math.round(totalTax).toLocaleString('en-PK')}</td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <div style="margin-top: 40px;">
+                <p style="margin: 0 0 5px 0;">Issuing Authority:</p>
+                <p style="margin: 0 0 5px 0; font-weight: bold;">Finance Department</p>
+                <p style="margin: 0 0 5px 0; font-weight: bold;">KARANDAAZ PAKISTAN</p>
+                <p style="margin: 0 0 20px 0;">NTN: 4369428-4</p>
+                <p style="margin: 0;">${formattedToday}</p>
+            </div>
+            
+            <div style="margin-top: 50px; padding-top: 10px; border-top: 1px solid #ccc; text-align: center; font-size: 10px; color: #666;">
+                <p style="margin: 0; font-weight: bold; font-size: 12px; color: #005A9C;">KARANDAAZ PAKISTAN</p>
+                <p style="margin: 2px 0;">1E Ali Plaza, Nazimuddin Road, D-Chowk, Islamabad</p>
+                <p style="margin: 2px 0;">T: +92 (51) 8449761 | E: info@karandaaz.com.pk | www.karandaaz.com.pk</p>
+                <p style="margin: 2px 0; font-style: italic;">A company set up under Section 42 of the Companies Act 2017</p>
+            </div>
         </div>
     `;
     
     template.style.display = 'block';
     
     html2pdf().from(template).set({
-        margin: 0, filename: `Tax_Certificate_${cnic}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 },
+        margin: [0.5, 0.5, 0.5, 0.5], 
+        filename: `Tax_Certificate_${cnic}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 }, 
+        html2canvas: { scale: 2, useCORS: true },
         jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
     }).save().then(() => {
         template.style.display = 'none';
     });
 }
-
 // ========================================================================
 // 7. ADVANCES MODAL & CLICK LISTENER
 // ========================================================================
