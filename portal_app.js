@@ -102,30 +102,54 @@ function logout() {
 function renderDashboard() {
     if (!emp) return;
 
-    // --- 1. AGGRESSIVE DATA EXTRACTION ---
+    // --- 1. AGGRESSIVE & DYNAMIC DATA EXTRACTION ---
     let rawEmp = db.emp?._raw || db.emp || {};
     let rawGrat = db.myGratuity?._raw || db.myGratuity || {};
     let rawPF = db.myPF?._raw || db.myPF || {};
     let rawTrain = db.myTraining?._raw || db.myTraining || {};
 
     let employeeName = rawGrat['Employee Name'] || rawPF['Employee'] || rawEmp['Employee Name'] || "Employee Name";
-    let designation = rawEmp['Position code'] || rawEmp['Designation'] || "";
-    let gradeStr = rawEmp['Grade'] || rawEmp['grade'] || "0";
+    
+    // Dynamically hunt for Employee Code and prioritize it over Position Code
+    let empCodeKey = Object.keys(rawEmp).find(k => k.toLowerCase().replace(/\s/g, '') === 'employeecode' || k.toLowerCase() === 'emp code');
+    let designation = (empCodeKey ? rawEmp[empCodeKey] : null) || rawEmp['Employee Code'] || rawEmp['Position code'] || "";
+
+    // Dynamically hunt for Grade (handles "Job Grade", "Grade Code", etc.)
+    let gradeKey = Object.keys(rawEmp).find(k => k.toLowerCase().includes('grade'));
+    let gradeStr = gradeKey ? rawEmp[gradeKey] : "0";
     let gradeNum = parseInt(gradeStr.toString().replace(/\D/g, '')) || 0;
-    let baseSalary = getSafeNum(rawEmp['Base Salary'] || rawEmp['Salary'] || rawEmp['basesalary']);
-    let joinDateStr = rawEmp['Joining Date'] || rawEmp['DOJ'] || rawEmp.joiningdate;
+
+    // Dynamically hunt for Salary
+    let salaryKey = Object.keys(rawEmp).find(k => k.toLowerCase().includes('salary'));
+    let baseSalary = getSafeNum(salaryKey ? rawEmp[salaryKey] : 0) || getSafeNum(rawPF['Base Salary']);
+
+    // Date formatting to DD-MMM-YYYY
+    let joinDateKey = Object.keys(rawEmp).find(k => k.toLowerCase().includes('join') || k.toLowerCase() === 'doj');
+    let joinDateStr = joinDateKey ? rawEmp[joinDateKey] : null;
+    let formattedJoinDate = "N/A";
+    let joinDateObj = new Date();
+    
+    if (joinDateStr) {
+        let d = new Date(joinDateStr);
+        if (!isNaN(d)) {
+            joinDateObj = d;
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            formattedJoinDate = `${String(d.getDate()).padStart(2, '0')}-${months[d.getMonth()]}-${d.getFullYear()}`;
+        } else {
+            formattedJoinDate = joinDateStr; // Fallback if format is completely unrecognized
+        }
+    }
 
     // --- 2. HEADER DOM UPDATES ---
     if(document.getElementById('empNameDisplay')) document.getElementById('empNameDisplay').innerText = employeeName;
     if(document.getElementById('empDesignationDisplay')) document.getElementById('empDesignationDisplay').innerText = designation;
     if(document.getElementById('empGradeDisplay')) document.getElementById('empGradeDisplay').innerText = gradeNum;
-    if(document.getElementById('empJoinDisplay')) document.getElementById('empJoinDisplay').innerText = joinDateStr || 'N/A';
+    if(document.getElementById('empJoinDisplay')) document.getElementById('empJoinDisplay').innerText = formattedJoinDate;
 
     // --- 3. DATES & TENURE ---
     const baselineDateTenure = new Date(); 
-    const joinDate = joinDateStr ? new Date(joinDateStr) : new Date();
-    let tenureMonths = (baselineDateTenure.getFullYear() - joinDate.getFullYear()) * 12;
-    tenureMonths -= joinDate.getMonth();
+    let tenureMonths = (baselineDateTenure.getFullYear() - joinDateObj.getFullYear()) * 12;
+    tenureMonths -= joinDateObj.getMonth();
     tenureMonths += baselineDateTenure.getMonth();
 
     // --- A. PROVIDENT FUND ---
@@ -189,20 +213,22 @@ function renderDashboard() {
     let existingAdvancesAmount = 0;
     let existingAdvancesCount = 0;
     
+    // Filter out blank CSV rows to ensure count is accurate
+    let validAdvances = [];
     if (Array.isArray(db.myAdvances)) {
-        existingAdvancesCount = db.myAdvances.length;
-        existingAdvancesAmount = db.myAdvances.reduce((sum, adv) => sum + getSafeNum(adv?.amount || adv?.balance || adv?._raw?.['Amount'] || adv?._raw?.['Outstanding']), 0);
+        validAdvances = db.myAdvances.filter(adv => adv && Object.keys(adv).length > 0 && getSafeNum(adv?.amount || adv?.balance || adv?._raw?.['Amount'] || adv?._raw?.['Outstanding']) > 0);
     } else if (db.myAdvances && typeof db.myAdvances === 'object') {
-        existingAdvancesCount = 1;
-        existingAdvancesAmount = getSafeNum(db.myAdvances.amount || db.myAdvances.balance || db.myAdvances._raw?.['Amount']);
+        if (getSafeNum(db.myAdvances.amount || db.myAdvances.balance || db.myAdvances._raw?.['Amount']) > 0) {
+            validAdvances = [db.myAdvances];
+        }
     }
 
-    if (baseSalary === 0) {
-         baseSalary = getSafeNum(rawEmp['Basic Salary'] || rawEmp['basic_salary'] || rawEmp['Current Salary'] || rawPF['Base Salary'] || 0);
-    }
+    existingAdvancesCount = validAdvances.length;
+    existingAdvancesAmount = validAdvances.reduce((sum, adv) => sum + getSafeNum(adv?.amount || adv?.balance || adv?._raw?.['Amount'] || adv?._raw?.['Outstanding']), 0);
 
     let advMax = 0; 
     if (existingAdvancesCount < 3) {
+        // Safe fallback in case baseSalary is still 0
         let condition1 = baseSalary > 0 ? (baseSalary * 5) : (pfTotal * 0.6); 
         let condition2 = (pfTotal * 0.6) - existingAdvancesAmount;
         advMax = Math.max(0, Math.min(condition1, condition2));
