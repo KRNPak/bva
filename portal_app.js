@@ -149,7 +149,7 @@ function renderDashboard() {
     if(document.getElementById('pfProfit')) document.getElementById('pfProfit').innerText = Math.round(pfProfit).toLocaleString('en-PK');
     if(document.getElementById('pfWithdrawal')) document.getElementById('pfWithdrawal').innerText = Math.round(pfWithdrawals).toLocaleString('en-PK');
 
-    / --- B. TRAINING BUDGET ---
+    // --- B. TRAINING BUDGET ---
     let trAccrued = getSafeNum(db.myTraining?.accrued);
     let trUtilized = getSafeNum(db.myTraining?.expense);
     let trAvailable = Math.max(0, trAccrued - trUtilized);
