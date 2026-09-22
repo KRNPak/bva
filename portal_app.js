@@ -209,6 +209,7 @@ function renderDashboard() {
     }
 
     // --- D. SALARY ADVANCES ---
+   // --- D. SALARY ADVANCES ---
     let existingAdvancesAmount = 0;
     let existingAdvancesCount = 0;
     
@@ -233,26 +234,28 @@ function renderDashboard() {
     
     if(document.getElementById('advLimit')) animateValue('advLimit', advMax);
 
+    // INJECT THE PROGRESS BARS
     let advancesContainer = document.getElementById('activeAdvancesContainer');
     if (advancesContainer) {
         advancesContainer.innerHTML = ''; 
         if (validAdvances.length > 0) {
-            let advancesHTML = '<div style="margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 10px;">';
+            let advancesHTML = '<div style="margin-top: 15px;">';
             
             validAdvances.forEach((adv, index) => {
                 let rawA = adv._raw || adv;
                 let advAmount = getSafeNum(adv.amount || rawA['Advances'] || rawA['Amount']);
-                let advDate = rawA['Date of advance'] || rawA['Date'] || 'Unknown Date';
+                let settled = getSafeNum(rawA[' Previously settled ']) + getSafeNum(rawA[' Settled outside of payroll ']);
+                let balance = advAmount - settled;
+                let percent = advAmount > 0 ? (settled / advAmount) * 100 : 0;
                 
                 advancesHTML += `
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 0.8rem;">
-                        <div>
-                            <strong style="color: var(--text-primary);">Advance ${index + 1}</strong><br>
-                            <span style="color: var(--text-secondary);">${advDate}</span>
+                    <div style="margin-bottom: 12px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 4px;">
+                            <span style="color: var(--text-secondary);">Advance ${index + 1} Balance</span>
+                            <strong style="color: var(--krn-orange);">${Math.round(balance).toLocaleString('en-PK')} PKR</strong>
                         </div>
-                        <div style="text-align: right;">
-                            <strong style="color: var(--krn-orange);">${Math.round(advAmount).toLocaleString('en-PK')}</strong><br>
-                            <span style="color: var(--text-secondary);">PKR</span>
+                        <div style="width: 100%; background: rgba(0,0,0,0.1); border-radius: 4px; height: 6px; overflow: hidden;">
+                            <div style="width: ${percent}%; background: var(--krn-blue); height: 100%; border-radius: 4px;"></div>
                         </div>
                     </div>
                 `;
@@ -263,7 +266,7 @@ function renderDashboard() {
             advancesContainer.innerHTML = '<div style="margin-top: 15px; font-size: 0.8rem; color: var(--text-secondary);">No active advances.</div>';
         }
     }
-
+    
     // --- E. LEASE FINANCE LIMIT ---
     let leaseLimitEl = document.getElementById('leaseLimit');
     let leaseCard = document.getElementById('leaseCard');
@@ -428,3 +431,117 @@ function toggleTheme() {
         }
     }, 100);
 })();
+// ========================================================================
+// 6. TAX CERTIFICATE GENERATION
+// ========================================================================
+function generateTaxPDF() {
+    if (!emp) return;
+    const template = document.getElementById('pdfTemplate');
+    if (!template) {
+        alert("PDF Template not found in HTML.");
+        return;
+    }
+    
+    let yearSelect = document.getElementById('taxYearSelect');
+    let yearText = yearSelect ? yearSelect.options[yearSelect.selectedIndex].text : "Tax Year";
+    let empName = document.getElementById('empNameDisplay')?.innerText || 'Employee';
+    let cnic = document.getElementById('cnicInput')?.value || 'N/A';
+    
+    template.innerHTML = `
+        <div style="padding: 40px; font-family: Arial, sans-serif; color: #333; background: white;">
+            <div style="text-align: center; border-bottom: 2px solid #005A9C; margin-bottom: 30px; padding-bottom: 20px;">
+                <h2 style="color: #005A9C; margin: 0;">KARANDAAZ PAKISTAN</h2>
+                <h3 style="margin: 10px 0 5px 0;">Section 149 Tax Deduction Certificate</h3>
+                <p style="margin: 0; font-size: 1.1rem; color: #666;">${yearText}</p>
+            </div>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 1.1rem;">
+                <tr>
+                    <td style="padding: 12px; border: 1px solid #ddd; background: #f9f9f9; width: 40%; font-weight: bold;">Employee Name</td>
+                    <td style="padding: 12px; border: 1px solid #ddd;">${empName}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 12px; border: 1px solid #ddd; background: #f9f9f9; font-weight: bold;">CNIC</td>
+                    <td style="padding: 12px; border: 1px solid #ddd;">${cnic}</td>
+                </tr>
+            </table>
+            <p style="font-size: 1rem; line-height: 1.6;">
+                This is to certify that Karandaaz Pakistan has deducted tax under Section 149 of the Income Tax Ordinance, 2001, 
+                from the salary of the above-mentioned employee for the period <strong>${yearText}</strong>.
+            </p>
+        </div>
+    `;
+    
+    template.style.display = 'block';
+    
+    html2pdf().from(template).set({
+        margin: 0, filename: `Tax_Certificate_${cnic}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+    }).save().then(() => {
+        template.style.display = 'none';
+    });
+}
+
+// ========================================================================
+// 7. ADVANCES MODAL & CLICK LISTENER
+// ========================================================================
+function openAdvancesModal() {
+    let modal = document.getElementById('advModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'advModal';
+        modal.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; display:flex; align-items:center; justify-content:center; backdrop-filter: blur(4px);";
+        document.body.appendChild(modal);
+    }
+    
+    let validAdvances = (Array.isArray(db.myAdvances) ? db.myAdvances : [db.myAdvances]).filter(adv => adv && getSafeNum(adv?._raw?.['Advances'] || adv?.amount) > 0);
+
+    let rows = '';
+    validAdvances.forEach((adv, i) => {
+        let rawA = adv._raw || adv;
+        let amt = getSafeNum(rawA['Advances'] || rawA['Amount'] || adv.amount);
+        let settled = getSafeNum(rawA[' Previously settled ']) + getSafeNum(rawA[' Settled outside of payroll ']);
+        
+        rows += `
+            <tr style="border-bottom: 1px solid var(--border-color);">
+                <td style="padding:8px 0;">Advance ${i+1}<br><small style="color:var(--text-secondary);">${rawA['Date of advance'] || '-'}</small></td>
+                <td style="padding:8px 0; text-align:right;">${Math.round(amt).toLocaleString('en-PK')}</td>
+                <td style="padding:8px 0; text-align:right;">${Math.round(settled).toLocaleString('en-PK')}</td>
+                <td style="padding:8px 0; text-align:right; font-weight:bold; color:var(--krn-orange);">${Math.round(amt - settled).toLocaleString('en-PK')}</td>
+            </tr>
+        `;
+    });
+
+    modal.innerHTML = `
+        <div style="background:var(--bg-card); padding:25px; border-radius:12px; width:90%; max-width:600px; color:var(--text-primary); box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+                <h2 style="margin:0; color:var(--krn-blue);">Advances Breakdown</h2>
+            </div>
+            ${rows ? `
+            <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                <thead>
+                    <tr style="border-bottom:2px solid var(--border-color); color:var(--text-secondary);">
+                        <th style="text-align:left; padding:8px 0;">Detail</th>
+                        <th style="text-align:right; padding:8px 0;">Total</th>
+                        <th style="text-align:right; padding:8px 0;">Settled</th>
+                        <th style="text-align:right; padding:8px 0;">Balance</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>` : '<p style="color:var(--text-secondary);">No active advances.</p>'}
+            <div style="text-align:right; margin-top:20px;">
+                <button onclick="document.getElementById('advModal').style.display='none'" style="background:var(--krn-blue); color:white; border:none; padding:8px 20px; border-radius:6px; cursor:pointer;">Close</button>
+            </div>
+        </div>
+    `;
+    modal.style.display = 'flex';
+}
+
+// Attach the click listener to the card once the file loads
+setTimeout(() => {
+    let advCardEl = document.getElementById('advancesCard');
+    if (advCardEl) {
+        advCardEl.style.cursor = 'pointer';
+        advCardEl.onclick = openAdvancesModal;
+    }
+}, 500);
