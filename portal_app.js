@@ -149,27 +149,29 @@ function renderDashboard() {
     if(document.getElementById('pfProfit')) document.getElementById('pfProfit').innerText = Math.round(pfProfit).toLocaleString('en-PK');
     if(document.getElementById('pfWithdrawal')) document.getElementById('pfWithdrawal').innerText = Math.round(pfWithdrawals).toLocaleString('en-PK');
 
-    // --- B. TRAINING BUDGET ---
+    / --- B. TRAINING BUDGET ---
     let trAccrued = getSafeNum(db.myTraining?.accrued);
     let trUtilized = getSafeNum(db.myTraining?.expense);
-    let trAvailable = trAccrued - trUtilized;
+    let trAvailable = Math.max(0, trAccrued - trUtilized);
     
-    if(document.getElementById('trainLimit')) animateValue('trainLimit', trAvailable);
+    // Bulletproof ID targeting for the big Training number
+    let trainLimitEl = document.getElementById('trainLimit') || document.querySelector('#trainingBox .big-number'); 
+    if(trainLimitEl) animateValue(trainLimitEl.id || 'trainLimit', trAvailable);
+    
     if(document.getElementById('trainAccrued')) document.getElementById('trainAccrued').innerText = Math.round(trAccrued).toLocaleString('en-PK');
     if(document.getElementById('trainUtilized')) document.getElementById('trainUtilized').innerText = Math.round(trUtilized).toLocaleString('en-PK');
-
-    // --- C. GRATUITY ---
-    let gratOpening = getSafeNum(db.myGratuity?.opening); 
-    let gratAccrual = getSafeNum(db.myGratuity?.gratuitypayable); 
-    let gratTotal = gratOpening + gratAccrual; // Adjust if Gratuity Payable is already the grand total
     
-    if(document.getElementById('gratTotal')) animateValue('gratTotal', gratTotal);
+  // --- C. GRATUITY ---
+    // Checking multiple variations in case the backend didn't strip the space
+    let gratAccrual = getSafeNum(db.myGratuity?.gratuitypayable || db.myGratuity?.['Gratuity Payable'] || db.myGratuity?._raw?.['Gratuity Payable']); 
+    let gratOpening = getSafeNum(db.myGratuity?.opening || 0); 
+    let gratTotal = gratOpening + gratAccrual; 
+    
+    let gratTotalEl = document.getElementById('gratTotal') || document.querySelector('#gratuityBox .big-number');
+    if(gratTotalEl) animateValue(gratTotalEl.id || 'gratTotal', gratTotal);
+    
     if(document.getElementById('gratAccrued')) document.getElementById('gratAccrued').innerText = Math.round(gratAccrual).toLocaleString('en-PK');
     if(document.getElementById('gratOpening')) document.getElementById('gratOpening').innerText = Math.round(gratOpening).toLocaleString('en-PK');
-    
-    let years = Math.floor(Math.max(0, tenureMonths) / 12);
-    let months = Math.max(0, tenureMonths) % 12;
-    if(document.getElementById('gratTime')) document.getElementById('gratTime').innerText = `${years} Y, ${months} M`;
 
    // --- D. SALARY ADVANCES ---
     let baseSalary = getSafeNum(emp.basesalary || emp.salary);
@@ -202,17 +204,29 @@ function renderDashboard() {
     let advLimitEl = document.getElementById('advLimit') || document.querySelector('#advancesBox .big-number');
     if (advLimitEl) animateValue(advLimitEl.id || 'advLimit', advMax);
 
-    // --- E. LEASE FINANCE LIMIT ---
-    let overageTraining = trUtilized > trAccrued ? (trUtilized - trAccrued) : 0;
-    // Formula from your screenshot: (PF + Gratuity) - (Advances + Overage Training)
-    // Assuming Advances taken is stored somewhere, or we just use 0 if not yet pulled
-    let advancesTaken = getSafeNum(db.myAdvances?.amount) || 0; 
-    let leaseLimit = (pfTotal + gratTotal) - (advancesTaken + overageTraining);
+    // --- E. LEASE FINANCE LIMIT (Grade 9+ Only) ---
+    // Extract grade safely (assuming it's formatted like "9" or "Grade 9")
+    let gradeStr = emp.grade || emp.gradecode || "0";
+    let gradeNum = parseInt(gradeStr.replace(/\D/g, '')) || 0; // Strips text and gets the number
+
+    let leaseLimitEl = document.getElementById('leaseLimit');
     
-    // Ensure it doesn't go below zero
-    leaseLimit = Math.max(0, leaseLimit);
-    
-    if(document.getElementById('leaseLimit')) animateValue('leaseLimit', leaseLimit);
+    if (gradeNum < 9) {
+        // Lock it for employees below Grade 9
+        if(leaseLimitEl) {
+            leaseLimitEl.innerText = "Not Eligible";
+            leaseLimitEl.style.fontSize = "1.5rem"; // Make text fit better if needed
+        }
+    } else {
+        // Calculate for Grade 9 and above
+        let overageTraining = trUtilized > trAccrued ? (trUtilized - trAccrued) : 0;
+        let advancesTaken = getSafeNum(db.myAdvances?.amount) || 0; 
+        
+        let leaseLimit = (pfTotal + gratTotal) - (advancesTaken + overageTraining);
+        leaseLimit = Math.max(0, leaseLimit);
+        
+        if(leaseLimitEl) animateValue('leaseLimit', leaseLimit);
+    }
 }
 
 // ========================================================================
