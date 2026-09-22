@@ -110,16 +110,15 @@ function renderDashboard() {
 
     let employeeName = rawGrat['Employee Name'] || rawPF['Employee'] || rawEmp['Employee Name'] || "Employee Name";
     
-    // Dynamically hunt for Employee Code and prioritize it over Position Code
+    // Dynamically hunt for Employee Code
     let empCodeKey = Object.keys(rawEmp).find(k => k.toLowerCase().replace(/\s/g, '') === 'employeecode' || k.toLowerCase() === 'emp code');
     let designation = (empCodeKey ? rawEmp[empCodeKey] : null) || rawEmp['Employee Code'] || rawEmp['Position code'] || "";
 
-    // Dynamically hunt for Grade (handles "Job Grade", "Grade Code", etc.)
+    // Dynamically hunt for Grade
     let gradeKey = Object.keys(rawEmp).find(k => k.toLowerCase().includes('grade'));
     let gradeStr = gradeKey ? rawEmp[gradeKey] : "0";
     let gradeNum = parseInt(gradeStr.toString().replace(/\D/g, '')) || 0;
 
-    // Dynamically hunt for Salary
     let salaryKey = Object.keys(rawEmp).find(k => k.toLowerCase().includes('salary'));
     let baseSalary = getSafeNum(salaryKey ? rawEmp[salaryKey] : 0) || getSafeNum(rawPF['Base Salary']);
 
@@ -136,7 +135,7 @@ function renderDashboard() {
             const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
             formattedJoinDate = `${String(d.getDate()).padStart(2, '0')}-${months[d.getMonth()]}-${d.getFullYear()}`;
         } else {
-            formattedJoinDate = joinDateStr; // Fallback if format is completely unrecognized
+            formattedJoinDate = joinDateStr; 
         }
     }
 
@@ -209,14 +208,12 @@ function renderDashboard() {
         `;
     }
 
-   // --- D. SALARY ADVANCES ---
+    // --- D. SALARY ADVANCES ---
     let existingAdvancesAmount = 0;
     let existingAdvancesCount = 0;
     
-    // Filter out blank CSV rows to ensure count is accurate
     let validAdvances = [];
     if (Array.isArray(db.myAdvances)) {
-        // We added rawA['Advances'] to match your CSV exactly
         validAdvances = db.myAdvances.filter(adv => adv && Object.keys(adv).length > 0 && getSafeNum(adv?.amount || adv?.balance || adv?._raw?.['Advances'] || adv?._raw?.['Amount']) > 0);
     } else if (db.myAdvances && typeof db.myAdvances === 'object') {
         if (getSafeNum(db.myAdvances.amount || db.myAdvances.balance || db.myAdvances._raw?.['Advances'] || db.myAdvances._raw?.['Amount']) > 0) {
@@ -236,7 +233,6 @@ function renderDashboard() {
     
     if(document.getElementById('advLimit')) animateValue('advLimit', advMax);
 
-    // INJECT THE ACTIVE ADVANCES DETAILS
     let advancesContainer = document.getElementById('activeAdvancesContainer');
     if (advancesContainer) {
         advancesContainer.innerHTML = ''; 
