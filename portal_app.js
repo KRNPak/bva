@@ -176,8 +176,15 @@ function renderDashboard() {
     let gratTotal = gratOpening + gratPeriodAccrual;
     
     if(document.getElementById('gratuityTotal')) animateValue('gratuityTotal', gratTotal);
-    if(document.getElementById('gratAccrued')) document.getElementById('gratAccrued').innerText = Math.round(gratPeriodAccrual).toLocaleString('en-PK');
-    if(document.getElementById('gratOpening')) document.getElementById('gratOpening').innerText = Math.round(gratOpening).toLocaleString('en-PK');
+    
+    // Inject the breakdown directly into the HTML div
+    let gratBreakdownEl = document.getElementById('gratuityBreakdown');
+    if(gratBreakdownEl) {
+        gratBreakdownEl.innerHTML = `
+            <span style="color: var(--text-secondary);">Opening:</span> <strong>${Math.round(gratOpening).toLocaleString('en-PK')}</strong><br>
+            <span style="color: var(--text-secondary);">Accrued:</span> <strong>${Math.round(gratPeriodAccrual).toLocaleString('en-PK')}</strong>
+        `;
+    }
 
     // --- D. SALARY ADVANCES ---
     let existingAdvancesAmount = 0;
@@ -185,12 +192,21 @@ function renderDashboard() {
     
     if (Array.isArray(db.myAdvances)) {
         existingAdvancesCount = db.myAdvances.length;
-        existingAdvancesAmount = db.myAdvances.reduce((sum, adv) => sum + getSafeNum(adv?.amount || adv?.balance || adv?._raw?.['Amount']), 0);
+        existingAdvancesAmount = db.myAdvances.reduce((sum, adv) => sum + getSafeNum(adv?.amount || adv?.balance || adv?._raw?.['Amount'] || adv?._raw?.['Outstanding']), 0);
+    } else if (db.myAdvances && typeof db.myAdvances === 'object') {
+        existingAdvancesCount = 1;
+        existingAdvancesAmount = getSafeNum(db.myAdvances.amount || db.myAdvances.balance || db.myAdvances._raw?.['Amount']);
+    }
+
+    // Expanded search for Base Salary in case the CSV uses a different variation
+    if (baseSalary === 0) {
+         baseSalary = getSafeNum(rawEmp['Basic Salary'] || rawEmp['basic_salary'] || rawEmp['Current Salary'] || rawPF['Base Salary'] || 0);
     }
 
     let advMax = 0;
-    if (existingAdvancesCount < 3 && baseSalary > 0) {
-        let condition1 = baseSalary * 5;
+    if (existingAdvancesCount < 3) {
+        // If Base Salary is STILL completely missing from the data, it will fallback to strictly the PF condition
+        let condition1 = baseSalary > 0 ? (baseSalary * 5) : (pfTotal * 0.6); 
         let condition2 = (pfTotal * 0.6) - existingAdvancesAmount;
         advMax = Math.max(0, Math.min(condition1, condition2));
     }
