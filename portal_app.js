@@ -209,32 +209,64 @@ function renderDashboard() {
         `;
     }
 
-    // --- D. SALARY ADVANCES ---
+   // --- D. SALARY ADVANCES ---
     let existingAdvancesAmount = 0;
     let existingAdvancesCount = 0;
     
     // Filter out blank CSV rows to ensure count is accurate
     let validAdvances = [];
     if (Array.isArray(db.myAdvances)) {
-        validAdvances = db.myAdvances.filter(adv => adv && Object.keys(adv).length > 0 && getSafeNum(adv?.amount || adv?.balance || adv?._raw?.['Amount'] || adv?._raw?.['Outstanding']) > 0);
+        // We added rawA['Advances'] to match your CSV exactly
+        validAdvances = db.myAdvances.filter(adv => adv && Object.keys(adv).length > 0 && getSafeNum(adv?.amount || adv?.balance || adv?._raw?.['Advances'] || adv?._raw?.['Amount']) > 0);
     } else if (db.myAdvances && typeof db.myAdvances === 'object') {
-        if (getSafeNum(db.myAdvances.amount || db.myAdvances.balance || db.myAdvances._raw?.['Amount']) > 0) {
+        if (getSafeNum(db.myAdvances.amount || db.myAdvances.balance || db.myAdvances._raw?.['Advances'] || db.myAdvances._raw?.['Amount']) > 0) {
             validAdvances = [db.myAdvances];
         }
     }
 
     existingAdvancesCount = validAdvances.length;
-    existingAdvancesAmount = validAdvances.reduce((sum, adv) => sum + getSafeNum(adv?.amount || adv?.balance || adv?._raw?.['Amount'] || adv?._raw?.['Outstanding']), 0);
+    existingAdvancesAmount = validAdvances.reduce((sum, adv) => sum + getSafeNum(adv?.amount || adv?.balance || adv?._raw?.['Advances'] || adv?._raw?.['Amount']), 0);
 
     let advMax = 0; 
     if (existingAdvancesCount < 3) {
-        // Safe fallback in case baseSalary is still 0
         let condition1 = baseSalary > 0 ? (baseSalary * 5) : (pfTotal * 0.6); 
         let condition2 = (pfTotal * 0.6) - existingAdvancesAmount;
         advMax = Math.max(0, Math.min(condition1, condition2));
     }
     
     if(document.getElementById('advLimit')) animateValue('advLimit', advMax);
+
+    // INJECT THE ACTIVE ADVANCES DETAILS
+    let advancesContainer = document.getElementById('activeAdvancesContainer');
+    if (advancesContainer) {
+        advancesContainer.innerHTML = ''; 
+        if (validAdvances.length > 0) {
+            let advancesHTML = '<div style="margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 10px;">';
+            
+            validAdvances.forEach((adv, index) => {
+                let rawA = adv._raw || adv;
+                let advAmount = getSafeNum(adv.amount || rawA['Advances'] || rawA['Amount']);
+                let advDate = rawA['Date of advance'] || rawA['Date'] || 'Unknown Date';
+                
+                advancesHTML += `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 0.8rem;">
+                        <div>
+                            <strong style="color: var(--text-primary);">Advance ${index + 1}</strong><br>
+                            <span style="color: var(--text-secondary);">${advDate}</span>
+                        </div>
+                        <div style="text-align: right;">
+                            <strong style="color: var(--krn-orange);">${Math.round(advAmount).toLocaleString('en-PK')}</strong><br>
+                            <span style="color: var(--text-secondary);">PKR</span>
+                        </div>
+                    </div>
+                `;
+            });
+            advancesHTML += '</div>';
+            advancesContainer.innerHTML = advancesHTML;
+        } else {
+            advancesContainer.innerHTML = '<div style="margin-top: 15px; font-size: 0.8rem; color: var(--text-secondary);">No active advances.</div>';
+        }
+    }
 
     // --- E. LEASE FINANCE LIMIT ---
     let leaseLimitEl = document.getElementById('leaseLimit');
