@@ -62,7 +62,7 @@ async function authenticateUser() {
         }
 
         db = await response.json();
-        emp = db.myProfile;
+        emp = db.emp;
 
         // Switch screens
         const loginScreen = document.getElementById('loginScreen');
