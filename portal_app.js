@@ -171,10 +171,36 @@ function renderDashboard() {
     let months = Math.max(0, tenureMonths) % 12;
     if(document.getElementById('gratTime')) document.getElementById('gratTime').innerText = `${years} Y, ${months} M`;
 
-    // --- D. SALARY ADVANCES (Placeholder calculation) ---
+   // --- D. SALARY ADVANCES ---
     let baseSalary = getSafeNum(emp.basesalary || emp.salary);
-    let advMax = Math.min(baseSalary * 5, pfTotal * 0.6);
-    if(document.getElementById('advLimit')) animateValue('advLimit', advMax);
+    
+    // Calculate total amount and count of existing advances
+    let existingAdvancesAmount = 0;
+    let existingAdvancesCount = 0;
+    
+    // Handle the myAdvances array from the network payload
+    if (Array.isArray(db.myAdvances)) {
+        existingAdvancesCount = db.myAdvances.length;
+        existingAdvancesAmount = db.myAdvances.reduce((sum, adv) => sum + getSafeNum(adv.amount || adv.balance || adv.outstanding), 0);
+    } else if (db.myAdvances && typeof db.myAdvances === 'object') {
+        // Fallback in case Vercel sends a single object instead of an array
+        existingAdvancesCount = 1;
+        existingAdvancesAmount = getSafeNum(db.myAdvances.amount || db.myAdvances.balance || db.myAdvances.outstanding);
+    }
+    
+    let advMax = 0;
+    
+    // Apply the 3-advance hard limit
+    if (existingAdvancesCount < 3) {
+        let condition1 = baseSalary * 5;
+        let condition2 = (pfTotal * 0.6) - existingAdvancesAmount;
+        
+        // Take the lower of the two, ensuring it never drops below zero
+        advMax = Math.max(0, Math.min(condition1, condition2));
+    }
+    
+    let advLimitEl = document.getElementById('advLimit') || document.querySelector('#advancesBox .big-number');
+    if (advLimitEl) animateValue(advLimitEl.id || 'advLimit', advMax);
 
     // --- E. LEASE FINANCE LIMIT ---
     let overageTraining = trUtilized > trAccrued ? (trUtilized - trAccrued) : 0;
