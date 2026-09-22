@@ -102,10 +102,11 @@ function renderDashboard() {
     tenureMonths -= joinDate.getMonth();
     tenureMonths += baselineDate.getMonth();
 
-    // --- POPULATE HEADER PROFILE ---
-    if(document.getElementById('empName')) document.getElementById('empName').innerText = emp.employee || "Employee";
-    if(document.getElementById('empCode')) document.getElementById('empCode').innerText = emp.empcode || "";
-    if(document.getElementById('empDesignation')) document.getElementById('empDesignation').innerText = emp.designation || "";
+   // --- POPULATE HEADER PROFILE ---
+    let finalName = emp.employee || emp.employeename || db.myPF?.employee || db.myGratuity?.employeename || "Employee Name";
+    if(document.getElementById('empName')) document.getElementById('empName').innerText = finalName;
+    if(document.getElementById('empCode')) document.getElementById('empCode').innerText = emp.empcode || emp.employeecode || "";
+    if(document.getElementById('empDesignation')) document.getElementById('empDesignation').innerText = emp.designation || emp.positioncode || "";
 
     // --- A. PROVIDENT FUND ---
     let pf = db.myPF || {};
@@ -174,6 +175,18 @@ function renderDashboard() {
     let baseSalary = getSafeNum(emp.basesalary || emp.salary);
     let advMax = Math.min(baseSalary * 5, pfTotal * 0.6);
     if(document.getElementById('advLimit')) animateValue('advLimit', advMax);
+
+    // --- E. LEASE FINANCE LIMIT ---
+    let overageTraining = trUtilized > trAccrued ? (trUtilized - trAccrued) : 0;
+    // Formula from your screenshot: (PF + Gratuity) - (Advances + Overage Training)
+    // Assuming Advances taken is stored somewhere, or we just use 0 if not yet pulled
+    let advancesTaken = getSafeNum(db.myAdvances?.amount) || 0; 
+    let leaseLimit = (pfTotal + gratTotal) - (advancesTaken + overageTraining);
+    
+    // Ensure it doesn't go below zero
+    leaseLimit = Math.max(0, leaseLimit);
+    
+    if(document.getElementById('leaseLimit')) animateValue('leaseLimit', leaseLimit);
 }
 
 // ========================================================================
