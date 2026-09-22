@@ -186,14 +186,14 @@ function renderDashboard() {
         `;
     }
     
-    // Inject the breakdown directly into the HTML div
+    /* Inject the breakdown directly into the HTML div
     let gratBreakdownEl = document.getElementById('gratuityBreakdown');
     if(gratBreakdownEl) {
         gratBreakdownEl.innerHTML = `
             <span style="color: var(--text-secondary);">Opening:</span> <strong>${Math.round(gratOpening).toLocaleString('en-PK')}</strong><br>
             <span style="color: var(--text-secondary);">Accrued:</span> <strong>${Math.round(gratPeriodAccrual).toLocaleString('en-PK')}</strong>
         `;
-    }
+    }*/
 
     // --- D. SALARY ADVANCES ---
     let existingAdvancesAmount = 0;
