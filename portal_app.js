@@ -5,7 +5,6 @@ function renderDashboard() {
     if (!emp) return;
 
     // --- 1. AGGRESSIVE DATA EXTRACTION (Fixes the zeros & missing profile) ---
-    // We look inside the "_raw" object that Vercel created for your CSVs
     let rawEmp = db.emp?._raw || db.emp || {};
     let rawGrat = db.myGratuity?._raw || db.myGratuity || {};
     let rawPF = db.myPF?._raw || db.myPF || {};
@@ -14,17 +13,16 @@ function renderDashboard() {
     // Profile Data Extraction
     let employeeName = rawGrat['Employee Name'] || rawPF['Employee'] || rawEmp['Employee Name'] || "Employee Name";
     let designation = rawEmp['Position code'] || rawEmp['Designation'] || "";
-    let gradeStr = rawEmp['Grade'] || "0";
+    let gradeStr = rawEmp['Grade'] || rawEmp['grade'] || "0";
     let gradeNum = parseInt(gradeStr.toString().replace(/\D/g, '')) || 0;
-    let baseSalary = getSafeNum(rawEmp['Base Salary'] || rawEmp['Salary']);
+    let baseSalary = getSafeNum(rawEmp['Base Salary'] || rawEmp['Salary'] || rawEmp['basesalary']);
     let joinDateStr = rawEmp['Joining Date'] || rawEmp['DOJ'] || rawEmp.joiningdate;
 
-    // --- 2. HEADER DOM UPDATES ---
-    if(document.getElementById('empName')) document.getElementById('empName').innerText = employeeName;
-    if(document.getElementById('empCode')) document.getElementById('empCode').innerText = rawEmp['Employee Code'] || rawEmp['Emp Code'] || "";
-    if(document.getElementById('empDesignation')) {
-        document.getElementById('empDesignation').innerText = `${designation} | Grade: ${gradeNum} | Joined: ${joinDateStr || 'N/A'}`;
-    }
+    // --- 2. HEADER DOM UPDATES (Matches portal (1).html perfectly) ---
+    if(document.getElementById('empNameDisplay')) document.getElementById('empNameDisplay').innerText = employeeName;
+    if(document.getElementById('empDesignationDisplay')) document.getElementById('empDesignationDisplay').innerText = designation;
+    if(document.getElementById('empGradeDisplay')) document.getElementById('empGradeDisplay').innerText = gradeNum;
+    if(document.getElementById('empJoinDisplay')) document.getElementById('empJoinDisplay').innerText = joinDateStr || 'N/A';
 
     // --- 3. DATES & TENURE ---
     const baselineDate = new Date(); 
@@ -67,7 +65,8 @@ function renderDashboard() {
     let trUtilized = getSafeNum(rawTrain['Expense'] || rawTrain.expense);
     let trAvailable = Math.max(0, trAccrued - trUtilized);
     
-    if(document.getElementById('trainLimit')) animateValue('trainLimit', trAvailable);
+    // HTML ID is trainAvailable
+    if(document.getElementById('trainAvailable')) animateValue('trainAvailable', trAvailable);
     if(document.getElementById('trainAccrued')) document.getElementById('trainAccrued').innerText = Math.round(trAccrued).toLocaleString('en-PK');
     if(document.getElementById('trainUtilized')) document.getElementById('trainUtilized').innerText = Math.round(trUtilized).toLocaleString('en-PK');
 
@@ -76,7 +75,8 @@ function renderDashboard() {
     let gratOpening = getSafeNum(rawGrat['Opening'] || rawGrat.opening || 0);
     let gratTotal = gratOpening + gratAccrual;
     
-    if(document.getElementById('gratTotal')) animateValue('gratTotal', gratTotal);
+    // HTML ID is gratuityTotal
+    if(document.getElementById('gratuityTotal')) animateValue('gratuityTotal', gratTotal);
     if(document.getElementById('gratAccrued')) document.getElementById('gratAccrued').innerText = Math.round(gratAccrual).toLocaleString('en-PK');
     if(document.getElementById('gratOpening')) document.getElementById('gratOpening').innerText = Math.round(gratOpening).toLocaleString('en-PK');
 
@@ -95,6 +95,7 @@ function renderDashboard() {
         let condition2 = (pfTotal * 0.6) - existingAdvancesAmount;
         advMax = Math.max(0, Math.min(condition1, condition2));
     }
+    
     if(document.getElementById('advLimit')) animateValue('advLimit', advMax);
 
     // --- E. LEASE FINANCE LIMIT ---
@@ -108,7 +109,7 @@ function renderDashboard() {
             let leaseLimit = (pfTotal + gratTotal) - (existingAdvancesAmount + overageTraining);
             leaseLimit = Math.max(0, leaseLimit);
             
-            leaseLimitEl.style.fontSize = ""; // Reset font in case it was modified
+            leaseLimitEl.style.fontSize = ""; 
             animateValue('leaseLimit', leaseLimit);
         }
     }
