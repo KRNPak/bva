@@ -195,7 +195,7 @@ function renderDashboard() {
         `;
     }*/
 
-    // --- D. SALARY ADVANCES ---
+   // --- D. SALARY ADVANCES ---
     let existingAdvancesAmount = 0;
     let existingAdvancesCount = 0;
     
@@ -207,14 +207,13 @@ function renderDashboard() {
         existingAdvancesAmount = getSafeNum(db.myAdvances.amount || db.myAdvances.balance || db.myAdvances._raw?.['Amount']);
     }
 
-    // Expanded search for Base Salary in case the CSV uses a different variation
+    // Expanded search for Base Salary
     if (baseSalary === 0) {
          baseSalary = getSafeNum(rawEmp['Basic Salary'] || rawEmp['basic_salary'] || rawEmp['Current Salary'] || rawPF['Base Salary'] || 0);
     }
 
-    let advMax = 0;
+    let advMax = 0; // Declared exactly once
     if (existingAdvancesCount < 3) {
-        // If Base Salary is STILL completely missing from the data, it will fallback to strictly the PF condition
         let condition1 = baseSalary > 0 ? (baseSalary * 5) : (pfTotal * 0.6); 
         let condition2 = (pfTotal * 0.6) - existingAdvancesAmount;
         advMax = Math.max(0, Math.min(condition1, condition2));
