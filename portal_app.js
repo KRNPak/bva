@@ -122,11 +122,11 @@ function renderDashboard() {
     if(document.getElementById('empJoinDisplay')) document.getElementById('empJoinDisplay').innerText = joinDateStr || 'N/A';
 
     // --- 3. DATES & TENURE ---
-    const baselineDate = new Date(); 
+    const baselineDateTenure = new Date(); 
     const joinDate = joinDateStr ? new Date(joinDateStr) : new Date();
-    let tenureMonths = (baselineDate.getFullYear() - joinDate.getFullYear()) * 12;
+    let tenureMonths = (baselineDateTenure.getFullYear() - joinDate.getFullYear()) * 12;
     tenureMonths -= joinDate.getMonth();
-    tenureMonths += baselineDate.getMonth();
+    tenureMonths += baselineDateTenure.getMonth();
 
     // --- A. PROVIDENT FUND ---
     let pf = db.myPF || {};
@@ -167,12 +167,16 @@ function renderDashboard() {
     if(document.getElementById('trainUtilized')) document.getElementById('trainUtilized').innerText = Math.round(trUtilized).toLocaleString('en-PK');
 
     // --- C. GRATUITY ---
-    let gratAccrual = getSafeNum(rawGrat['Gratuity Payable'] || rawGrat.gratuitypayable);
-    let gratOpening = getSafeNum(rawGrat['Opening'] || rawGrat.opening || 0);
-    let gratTotal = gratOpening + gratAccrual;
+    let gratOpening = getSafeNum(rawGrat['Gratuity Payable'] || rawGrat.gratuitypayable || rawGrat['Opening'] || 0);
+    
+    let today = new Date();
+    let baselineDate = new Date(today.getFullYear() - (today.getMonth() < 6 ? 1 : 0), 6, 1); 
+    let gratPeriodAccrual = today > baselineDate ? (baseSalary * 0.5) * ((today - baselineDate) / (1000 * 60 * 60 * 24 * 365.25)) : 0;
+    
+    let gratTotal = gratOpening + gratPeriodAccrual;
     
     if(document.getElementById('gratuityTotal')) animateValue('gratuityTotal', gratTotal);
-    if(document.getElementById('gratAccrued')) document.getElementById('gratAccrued').innerText = Math.round(gratAccrual).toLocaleString('en-PK');
+    if(document.getElementById('gratAccrued')) document.getElementById('gratAccrued').innerText = Math.round(gratPeriodAccrual).toLocaleString('en-PK');
     if(document.getElementById('gratOpening')) document.getElementById('gratOpening').innerText = Math.round(gratOpening).toLocaleString('en-PK');
 
     // --- D. SALARY ADVANCES ---
@@ -195,15 +199,22 @@ function renderDashboard() {
 
     // --- E. LEASE FINANCE LIMIT ---
     let leaseLimitEl = document.getElementById('leaseLimit');
-    if (leaseLimitEl) {
-        if (gradeNum < 9) {
-            leaseLimitEl.innerText = "Not Eligible";
-            leaseLimitEl.style.fontSize = "1.5rem"; 
-        } else {
-            let overageTraining = trUtilized > trAccrued ? (trUtilized - trAccrued) : 0;
-            let leaseLimit = (pfTotal + gratTotal) - (existingAdvancesAmount + overageTraining);
-            leaseLimit = Math.max(0, leaseLimit);
-            
+    let leaseCard = document.getElementById('leaseCard');
+    
+    if (gradeNum < 9) {
+        if (leaseLimitEl) leaseLimitEl.innerText = "0";
+        if (leaseCard) {
+            leaseCard.classList.add('locked-card');
+            if (!leaseCard.querySelector('.locked-overlay')) {
+                leaseCard.insertAdjacentHTML('beforeend', `<div class="locked-overlay"><span style="font-size:1.2rem; font-weight:bold; color:var(--text-primary);">Grade 9+ Only</span></div>`);
+            }
+        }
+    } else {
+        let overageTraining = trUtilized > trAccrued ? (trUtilized - trAccrued) : 0;
+        let leaseLimit = (pfTotal + gratTotal) - (existingAdvancesAmount + overageTraining);
+        leaseLimit = Math.max(0, leaseLimit);
+        
+        if (leaseLimitEl) {
             leaseLimitEl.style.fontSize = ""; 
             animateValue('leaseLimit', leaseLimit);
         }
@@ -221,6 +232,95 @@ function openPFModal() {
         modal.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; display:flex; align-items:center; justify-content:center; backdrop-filter: blur(4px);";
         document.body.appendChild(modal);
     }
+    
+    let pf = db.myPF || {};
+    let rawPF = db.myPF?._raw || db.myPF || {};
+    if (Object.keys(rawPF).length === 0 && Object.keys(pf).length === 0) return;
+
+    let openingPF = getSafeNum(pf.openingpf || rawPF['Opening PF']);
+    let openingProfit = getSafeNum(pf.openingprofit || rawPF['Opening Profit']);
+    let currentEmpTotal = openingPF / 2;
+    let currentErTotal = openingPF / 2;
+    let currentProfitTotal = openingProfit;
+
+    const displayMonths = ['Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+    const monthPrefixes = ['july', 'august', 'september', 'october', 'november', 'december', 'january', 'february', 'march', 'april', 'may', 'june'];
+    
+    let monthlyRows = '';
+    
+    for (let i = 0; i < 12; i++) {
+        let mTotalCont = getSafeNum(pf[monthPrefixes[i] + 'contribution']);
+        let mProfit = getSafeNum(pf[monthPrefixes[i] + 'profit']);
+        let mEmp = mTotalCont / 2;
+        let mEr = mTotalCont / 2;
+        
+        currentEmpTotal += mEmp;
+        currentErTotal += mEr;
+        currentProfitTotal += mProfit;
+
+        if (mTotalCont > 0 || mProfit > 0) {
+            monthlyRows += `
+                <tr style="border-bottom: 1px solid var(--border-color); background: rgba(0,0,0,0.01);">
+                    <td style="padding:6px 0; color:var(--text-secondary);">${displayMonths[i]}</td>
+                    <td style="padding:6px 0; text-align:right;">${Math.round(mEmp).toLocaleString('en-PK')}</td>
+                    <td style="padding:6px 0; text-align:right;">${Math.round(mEr).toLocaleString('en-PK')}</td>
+                    <td style="padding:6px 0; text-align:right; color:var(--krn-green);">${Math.round(mProfit).toLocaleString('en-PK')}</td>
+                </tr>
+            `;
+        }
+    }
+
+    let pfWithdrawals = getSafeNum(pf.permanentwithdrawals || rawPF['Permanent Withdrawals']);
+    let grandTotal = (currentEmpTotal + currentErTotal + currentProfitTotal) - pfWithdrawals;
+
+    modal.innerHTML = `
+        <div style="background:var(--bg-card); padding:25px; border-radius:12px; width:90%; max-width:550px; color:var(--text-primary); box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+                <h2 style="margin:0; color:var(--krn-blue);">Provident Fund Ledger</h2>
+            </div>
+            <table style="width:100%; border-collapse:collapse; font-size:0.85rem; margin-bottom:10px;">
+                <tr style="border-bottom: 1px dashed var(--border-color);">
+                    <td style="padding:8px 0; color:var(--text-secondary);">Opening PF</td>
+                    <td style="padding:8px 0; text-align:right;"><strong>${Math.round(openingPF).toLocaleString('en-PK')}</strong></td>
+                </tr>
+                <tr style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding:8px 0; color:var(--text-secondary);">Opening Profits</td>
+                    <td style="padding:8px 0; text-align:right;"><strong>${Math.round(openingProfit).toLocaleString('en-PK')}</strong></td>
+                </tr>
+            </table>
+            
+            ${monthlyRows ? `
+            <div style="margin-top: 15px; margin-bottom: 15px; max-height: 160px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 6px;">
+                <table style="width:100%; border-collapse:collapse; font-size:0.8rem;">
+                    <thead style="background: var(--bg-page); position: sticky; top: 0;">
+                        <tr>
+                            <th style="padding:8px 5px; text-align:left; color:var(--text-secondary);">Month</th>
+                            <th style="padding:8px 5px; text-align:right; color:var(--text-secondary);">Emp Cont.</th>
+                            <th style="padding:8px 5px; text-align:right; color:var(--text-secondary);">Er Cont.</th>
+                            <th style="padding:8px 5px; text-align:right; color:var(--text-secondary);">Profit</th>
+                        </tr>
+                    </thead>
+                    <tbody style="padding: 0 5px;">${monthlyRows}</tbody>
+                </table>
+            </div>` : ''}
+            
+            <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                <tbody>
+                    <tr style="border-bottom: 1px solid var(--border-color);">
+                        <td style="padding:6px 0; color:var(--krn-orange);">Less: Withdrawals</td>
+                        <td style="padding:6px 0; text-align:right; font-weight:bold; color:var(--krn-orange);">- ${Math.round(pfWithdrawals).toLocaleString('en-PK')}</td>
+                    </tr>
+                    <tr style="background:rgba(0,0,0,0.02);">
+                        <td style="padding:15px 5px; font-weight:bold; color:var(--krn-blue);">Net Closing Balance</td>
+                        <td style="padding:15px 5px; text-align:right; font-weight:bold; color:var(--krn-blue); font-size:1.1rem;">${Math.round(grandTotal).toLocaleString('en-PK')} PKR</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div style="text-align:right; margin-top:20px;">
+                <button onclick="document.getElementById('pfModal').style.display='none'" style="background:var(--krn-blue); color:white; border:none; padding:8px 20px; border-radius:6px; cursor:pointer; font-weight:bold;">Close</button>
+            </div>
+        </div>
+    `;
     modal.style.display = 'flex';
 }
 
