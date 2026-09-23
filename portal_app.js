@@ -321,7 +321,8 @@ function renderDashboard() {
     // --- E. LEASE FINANCE LIMIT ---
     let leaseLimitEl = document.getElementById('leaseLimit');
     let leaseCard = document.getElementById('leaseCard');
-    let isEligible = String(rawEmp['Lease eligibility']).toLowerCase() === 'yes';
+    let leaseVal = String(rawEmp['Lease eligibility']).trim().toLowerCase();
+    let isEligible = leaseVal === 'yes' || leaseVal === 'y';
     let leaseAvailed = getSafeNum(rawEmp['Lease amount availed']);
     
     if (!isEligible) {
