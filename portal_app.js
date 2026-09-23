@@ -120,49 +120,61 @@ function renderDashboard() {
     tenureMonths -= joinDateObj.getMonth();
     tenureMonths += today.getMonth();
 
-    // --- NEW: BENTO BOX SUMMARY (Compensation & Benefits) ---
-    let compContainer = document.getElementById('compensationBentoContainer');
+   // --- NEW: BENTO BOX SUMMARY (Compensation & Benefits) ---
+    let compContainer = document.getElementById('compensationCard');
     if (!compContainer) {
-        // If the container doesn't exist, we dynamically inject it below the header
-        let dashContent = document.querySelector('.dashboard-content') || document.body;
-        compContainer = document.createElement('div');
-        compContainer.id = 'compensationBentoContainer';
-        dashContent.insertBefore(compContainer, dashContent.firstChild);
+        // Inject directly into the CSS grid alongside the other cards
+        let grid = document.querySelector('.dashboard-grid') || document.querySelector('.grid-container') || document.querySelector('.dashboard-content');
+        if (grid) {
+            compContainer = document.createElement('div');
+            compContainer.id = 'compensationCard';
+            compContainer.className = 'card';
+            // Force the card to stretch downwards to match the mockup
+            compContainer.style.gridRow = 'span 2';
+            compContainer.style.display = 'flex';
+            compContainer.style.flexDirection = 'column';
+            grid.insertBefore(compContainer, grid.firstChild);
+        }
     }
     
-    let cma = getSafeNum(rawEmp['Car monetization']);
-    let childCare = getSafeNum(rawEmp['Child care allowance']);
-    let wellness = getSafeNum(rawEmp['Wellness allowance']);
-    let cola = getSafeNum(rawEmp['COLA']);
-    let comms = getSafeNum(rawEmp['Communication reimbursement']);
-    let fuel = rawEmp['Fuel allowed in Liters'] ? rawEmp['Fuel allowed in Liters'] + " Liters" : "0 Liters";
-    let osr = rawEmp['OSR'] || "-";
-    let gf = rawEmp['GF'] || "-";
-    let fip = rawEmp['FIP'] || "-";
+    if (compContainer) {
+        let cma = getSafeNum(rawEmp['Car monetization']);
+        let childCare = getSafeNum(rawEmp['Child care allowance']);
+        let wellness = getSafeNum(rawEmp['Wellness allowance']);
+        let cola = getSafeNum(rawEmp['COLA']);
+        let comms = getSafeNum(rawEmp['Communication reimbursement']);
+        let fuel = rawEmp['Fuel allowed in Liters'];
+        let osr = rawEmp['OSR'];
+        let gf = rawEmp['GF'];
+        let fip = rawEmp['FIP'];
 
-    compContainer.innerHTML = `
-        <div style="background:var(--bg-card); border-radius:12px; padding:20px; margin-bottom:20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
-            <h3 style="margin-top:0; color:var(--krn-blue); font-size:1.1rem; border-bottom:1px solid var(--border-color); padding-bottom:10px;">Total Rewards & Benefits</h3>
-            <div style="display:flex; flex-wrap:wrap; gap:15px; margin-top:15px;">
-                <div style="flex: 1 1 150px; background:rgba(0,0,0,0.02); padding:10px 15px; border-radius:8px;">
-                    <span style="font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase;">Base Salary</span>
-                    <div style="font-size:1.2rem; font-weight:bold; color:var(--text-primary); margin-top:5px;">${Math.round(baseSalary).toLocaleString('en-PK')}</div>
-                </div>
-                <div style="flex: 1 1 150px; background:rgba(0,0,0,0.02); padding:10px 15px; border-radius:8px;">
-                    <span style="font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase;">Allowances (CMA, Wellness, etc.)</span>
-                    <div style="font-size:1.2rem; font-weight:bold; color:var(--text-primary); margin-top:5px;">${Math.round(cma + childCare + wellness + cola + comms).toLocaleString('en-PK')}</div>
-                </div>
-                <div style="flex: 1 1 150px; background:rgba(0,0,0,0.02); padding:10px 15px; border-radius:8px;">
-                    <span style="font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase;">Fuel Allowance</span>
-                    <div style="font-size:1.2rem; font-weight:bold; color:var(--text-primary); margin-top:5px;">${fuel}</div>
-                </div>
-                <div style="flex: 1 1 150px; background:rgba(0,0,0,0.02); padding:10px 15px; border-radius:8px;">
-                    <span style="font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase;">Donor Distributions</span>
-                    <div style="font-size:0.9rem; font-weight:bold; color:var(--text-primary); margin-top:5px;">OSR: ${osr} | GF: ${gf} | FIP: ${fip}</div>
-                </div>
+        // Helper function to build individual split boxes (hides them if empty/0)
+        function makeMiniBox(title, value) {
+            if (value === undefined || value === null || value === 0 || value === "0" || value === "" || value === "-") return '';
+            let displayVal = typeof value === 'number' ? Math.round(value).toLocaleString('en-PK') : value;
+            return `
+                <div style="background:rgba(0,0,0,0.02); padding:12px 15px; border-radius:8px; margin-bottom:10px; border: 1px solid var(--border-color);">
+                    <span style="font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase; font-weight:bold;">${title}</span>
+                    <div style="font-size:1.1rem; font-weight:bold; color:var(--text-primary); margin-top:4px;">${displayVal}</div>
+                </div>`;
+        }
+
+        compContainer.innerHTML = `
+            <h3 style="margin-top:0; color:var(--krn-blue); font-size:1.1rem; border-bottom:1px solid var(--border-color); padding-bottom:10px; margin-bottom:15px;">Total Rewards & Benefits</h3>
+            <div style="overflow-y:auto; flex-grow:1; padding-right:5px;">
+                ${makeMiniBox('Base Salary', baseSalary)}
+                ${makeMiniBox('Car Monetization', cma)}
+                ${makeMiniBox('Child Care Allowance', childCare)}
+                ${makeMiniBox('Wellness Allowance', wellness)}
+                ${makeMiniBox('COLA', cola)}
+                ${makeMiniBox('Communication', comms)}
+                ${fuel ? makeMiniBox('Fuel Allowance (Liters)', fuel) : ''}
+                ${makeMiniBox('OSR', osr)}
+                ${makeMiniBox('GF', gf)}
+                ${makeMiniBox('FIP', fip)}
             </div>
-        </div>
-    `;
+        `;
+    }
 
     // --- A. PROVIDENT FUND ---
     let pf = db.myPF || {};
