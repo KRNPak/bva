@@ -30,12 +30,20 @@ function animateValue(id, end, duration = 1000) {
 // ========================================================================
 async function authenticateUser() {
     const cnicInputEl = document.getElementById('cnicInput');
+    const empCodeInputEl = document.getElementById('empCodeInput'); // New field
+    
     const cnicInput = cnicInputEl ? cnicInputEl.value.trim() : "";
+    const empCodeInput = empCodeInputEl ? empCodeInputEl.value.trim() : "";
+    
     const btn = document.querySelector('.login-btn') || document.querySelector('button');
     const errorMsg = document.getElementById('loginError') || document.getElementById('errorMsg');
 
-    if (!cnicInput) {
-        if (errorMsg) { errorMsg.innerText = "Please enter your CNIC."; errorMsg.style.display = "block"; }
+    // 1. Check if both fields are provided
+    if (!cnicInput || !empCodeInput) {
+        if (errorMsg) { 
+            errorMsg.innerText = "Please enter both your Employee Code and CNIC."; 
+            errorMsg.style.display = "block"; 
+        }
         return;
     }
 
@@ -43,16 +51,27 @@ async function authenticateUser() {
     if (errorMsg) errorMsg.style.display = "none";
 
     try {
+        // Send both to backend (in case your backend API uses both)
         const response = await fetch('/api/get-employee-data', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cnic: cnicInput })
+            body: JSON.stringify({ cnic: cnicInput, empCode: empCodeInput })
         });
 
-        if (!response.ok) throw new Error("Invalid CNIC or Data Not Found");
+        if (!response.ok) throw new Error("Invalid Credentials or Data Not Found");
 
         db = await response.json();
         emp = db.emp; 
+        
+        // 2. Strict Frontend Verification Check
+        let rawEmp = emp?._raw || emp || {};
+        let dbEmpCodeKey = Object.keys(rawEmp).find(k => k.toLowerCase().replace(/\s/g, '') === 'employeecode' || k.toLowerCase() === 'emp code');
+        let actualEmpCode = dbEmpCodeKey ? rawEmp[dbEmpCodeKey] : "";
+        
+        // Compare input code against the master sheet code (case-insensitive)
+        if (String(actualEmpCode).trim().toLowerCase() !== String(empCodeInput).toLowerCase()) {
+            throw new Error("Invalid Employee Code or CNIC combination.");
+        }
 
         const loginScreen = document.getElementById('loginScreen');
         const dashboardScreen = document.getElementById('dashboardScreen');
@@ -61,20 +80,13 @@ async function authenticateUser() {
         
         renderDashboard();
     } catch (error) {
-        if (errorMsg) { errorMsg.innerText = error.message || "Access Denied. Please check your CNIC."; errorMsg.style.display = "block"; }
+        if (errorMsg) { 
+            errorMsg.innerText = error.message || "Access Denied. Please check your credentials."; 
+            errorMsg.style.display = "block"; 
+        }
         if (btn) { btn.innerText = "Secure Login \u2192"; btn.disabled = false; }
     }
 }
-
-function logout() {
-    db = {}; emp = null;
-    document.getElementById('cnicInput').value = "";
-    document.getElementById('loginScreen').style.display = 'flex';
-    document.getElementById('dashboardScreen').style.display = 'none';
-    let btn = document.querySelector('.login-btn');
-    if (btn) { btn.innerText = "Secure Login \u2192"; btn.disabled = false; }
-}
-
 // ========================================================================
 // 3. RENDER MAIN DASHBOARD
 // ========================================================================
