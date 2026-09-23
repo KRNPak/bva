@@ -165,19 +165,21 @@ function renderDashboard() {
                 </div>`;
         }
 
-        compContainer.innerHTML = `
-            <h3 style="margin-top:0; color:var(--krn-blue); font-size:1.1rem; border-bottom:1px solid var(--border-color); padding-bottom:10px; margin-bottom:15px;">Total Rewards & Benefits</h3>
-            <div style="overflow-y:auto; flex-grow:1; padding-right:5px;">
-                ${makeMiniBox('Base Salary', baseSalary)}
-                ${makeMiniBox('Car Monetization', cma)}
-                ${makeMiniBox('Child Care Allowance', childCare)}
-                ${makeMiniBox('Wellness Allowance', wellness)}
-                ${makeMiniBox('COLA', cola)}
-                ${makeMiniBox('Communication', comms)}
-                ${fuel ? makeMiniBox('Fuel Allowance (Liters)', fuel) : ''}
-                ${makeMiniBox('OSR', osr)}
-                ${makeMiniBox('GF', gf)}
-                ${makeMiniBox('FIP', fip)}
+       compContainer.innerHTML = `
+            <div style="background: var(--bg-card, #ffffff); border-radius: 12px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); display: flex; flex-direction: column; height: 100%; box-sizing: border-box;">
+                <h3 style="margin-top:0; color:var(--krn-blue); font-size:1.1rem; border-bottom:1px solid var(--border-color); padding-bottom:10px; margin-bottom:15px;">Total Rewards & Benefits</h3>
+                <div style="overflow-y:auto; flex-grow:1; padding-right:5px;">
+                    ${makeMiniBox('Base Salary', baseSalary)}
+                    ${makeMiniBox('Car Monetization', cma)}
+                    ${makeMiniBox('Child Care Allowance', childCare)}
+                    ${makeMiniBox('Wellness Allowance', wellness)}
+                    ${makeMiniBox('COLA', cola)}
+                    ${makeMiniBox('Communication', comms)}
+                    ${fuel ? makeMiniBox('Fuel Allowance (Liters)', fuel) : ''}
+                    ${makeMiniBox('OSR', osr)}
+                    ${makeMiniBox('GF', gf)}
+                    ${makeMiniBox('FIP', fip)}
+                </div>
             </div>
         `;
     }
