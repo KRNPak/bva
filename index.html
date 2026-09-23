@@ -84,29 +84,50 @@ input:checked + .theme-slider {
 input:checked + .theme-slider:before {
   transform: translateX(22px);
 }
-  /* Force alignment between header and grid */
+/* 1. Strict Alignment for Header and Grid */
   .dashboard-header, 
-  .dashboard-grid,
   .dashboard-content {
       width: 100% !important;
-      max-width: 100% !important; /* Allows it to expand fully, you can change to 1600px if you want bounds */
+      max-width: 1600px !important;
       margin-left: auto !important;
       margin-right: auto !important;
+      padding-left: 20px !important;
+      padding-right: 20px !important;
       box-sizing: border-box !important;
   }
-
-  /* Force the grid items to expand and fill the available space evenly */
+  
+  /* 2. Ensure grid stretches to fill the constrained space */
   .dashboard-grid {
       display: grid !important;
-      grid-template-columns: repeat(5, 1fr) !important; /* 5 columns stretching evenly */
+      grid-template-columns: repeat(5, 1fr) !important;
       gap: 20px !important;
+      width: 100% !important;
   }
 
-  /* Keep it responsive so it stacks neatly on smaller laptop screens */
+  /* 3. Responsive grid stacking */
   @media (max-width: 1400px) {
       .dashboard-grid {
           grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)) !important;
       }
+  }
+
+  /* 4. Formatting for Login Inputs */
+  .login-input {
+      width: 100%;
+      padding: 12px 15px;
+      margin-bottom: 15px;
+      font-size: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      box-sizing: border-box;
+      background: #fff;
+      color: #333;
+      transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .login-input:focus {
+      outline: none;
+      border-color: #005A9C;
+      box-shadow: 0 0 0 2px rgba(0, 90, 156, 0.2);
   }
 </style>
 </head>
@@ -118,10 +139,10 @@ input:checked + .theme-slider:before {
             <img src="https://www.karandaaz.com.pk/_next/static/media/navbar-logo.0ebe1390.svg" alt="Karandaaz" style="height: 40px; margin-bottom: 20px;">
             <h2 style="margin: 0; color: var(--text-primary);">Employee Portal</h2>
             <p style="font-size: 0.85rem; color: var(--text-secondary);">Enter your CNIC (Without Dashes) to access your secure data.</p>
-            <!-- Add this new input field for the Employee Code -->
-            <input type="text" id="empCodeInput" placeholder="Employee Code (e.g., KRN001)" class="login-input" required />
-            <!-- Your existing CNIC input -->
-            <input type="text" id="cnicInput" placeholder="CNIC (e.g., 1234512345671)" class="login-input" required />
+            <div style="margin-bottom: 25px;">
+                <input type="text" id="empCodeInput" placeholder="Employee Code (e.g., KRN001)" class="login-input" required />
+                <input type="text" id="cnicInput" placeholder="CNIC (e.g., 12345-1234567-1)" class="login-input" style="margin-bottom: 0;" required />
+            </div>
             <button class="login-btn" onclick="authenticateUser()">Secure Login &rarr;</button>
             <div id="loginError" style="color: var(--krn-orange); font-size: 0.8rem; margin-top: 10px; display: none;">CNIC not found. Please verify and try again.</div>
         </div>
