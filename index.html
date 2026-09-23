@@ -85,6 +85,32 @@ input:checked + .theme-slider:before {
   transform: translateX(22px);
 }
     </style>
+    <style>
+  /* Force alignment between header and grid */
+  .dashboard-header, 
+  .dashboard-grid,
+  .dashboard-content {
+      width: 100% !important;
+      max-width: 100% !important; /* Allows it to expand fully, you can change to 1600px if you want bounds */
+      margin-left: auto !important;
+      margin-right: auto !important;
+      box-sizing: border-box !important;
+  }
+
+  /* Force the grid items to expand and fill the available space evenly */
+  .dashboard-grid {
+      display: grid !important;
+      grid-template-columns: repeat(5, 1fr) !important; /* 5 columns stretching evenly */
+      gap: 20px !important;
+  }
+
+  /* Keep it responsive so it stacks neatly on smaller laptop screens */
+  @media (max-width: 1400px) {
+      .dashboard-grid {
+          grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)) !important;
+      }
+  }
+</style>
 </head>
 <body class="light-mode">
 
