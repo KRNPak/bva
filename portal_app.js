@@ -138,20 +138,18 @@ function renderDashboard() {
     if (!compContainer) {
         compContainer = document.createElement('div');
         compContainer.id = 'compensationCard';
-        compContainer.className = 'card';
+        compContainer.className = 'bento-card';
         compContainer.style.gridRow = 'span 2'; // Stretches it down to match the mockup
-        compContainer.style.display = 'flex';
-        compContainer.style.flexDirection = 'column';
-        
+
         // Find the PF Card and inject the box directly *before* it in the grid
         let pfTotalEl = document.getElementById('pfTotal');
-        let pfCard = pfTotalEl ? pfTotalEl.closest('.card') : null;
-        
+        let pfCard = pfTotalEl ? pfTotalEl.closest('.bento-card') : null;
+
         if (pfCard && pfCard.parentNode) {
             pfCard.parentNode.insertBefore(compContainer, pfCard);
         } else {
             // Fallback if PF card isn't found
-            let grid = document.querySelector('.dashboard-grid') || document.querySelector('.grid-container') || document.querySelector('.dashboard-content');
+            let grid = document.querySelector('.portal-grid');
             if(grid) grid.appendChild(compContainer);
         }
     }
@@ -171,27 +169,28 @@ function renderDashboard() {
             if (value === undefined || value === null || value === 0 || value === "0" || value === "" || value === "-") return '';
             let displayVal = typeof value === 'number' ? Math.round(value).toLocaleString('en-PK') : value;
             return `
-                <div style="background:rgba(0,0,0,0.02); padding:12px 15px; border-radius:8px; margin-bottom:10px; border: 1px solid var(--border-color);">
-                    <span style="font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase; font-weight:bold;">${title}</span>
-                    <div style="font-size:1.1rem; font-weight:bold; color:var(--text-primary); margin-top:4px;">${displayVal}</div>
+                <div style="background:rgba(0,0,0,0.02); padding:10px 12px; border-radius:8px; border: 1px solid var(--border-color);">
+                    <span style="font-size:0.7rem; color:var(--text-secondary); text-transform:uppercase; font-weight:bold;">${title}</span>
+                    <div style="font-size:1.05rem; font-weight:bold; color:var(--text-primary); margin-top:4px; word-break:break-word;">${displayVal}</div>
                 </div>`;
         }
 
-       compContainer.innerHTML = `
-            <div style="background: var(--bg-card, #ffffff); border-radius: 12px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); display: flex; flex-direction: column; height: 100%; box-sizing: border-box;">
-                <h3 style="margin-top:0; color:var(--krn-blue); font-size:1.1rem; border-bottom:1px solid var(--border-color); padding-bottom:10px; margin-bottom:15px;">Total Rewards & Benefits</h3>
-                <div style="overflow-y:auto; flex-grow:1; padding-right:5px;">
-                    ${makeMiniBox('Base Salary', baseSalary)}
-                    ${makeMiniBox('Car Monetization', cma)}
-                    ${makeMiniBox('Child Care Allowance', childCare)}
-                    ${makeMiniBox('Wellness Allowance', wellness)}
-                    ${makeMiniBox('COLA', cola)}
-                    ${makeMiniBox('Communication', comms)}
-                    ${fuel ? makeMiniBox('Fuel Allowance (Liters)', fuel) : ''}
-                    ${makeMiniBox('OSR', osr)}
-                    ${makeMiniBox('GF', gf)}
-                    ${makeMiniBox('FIP', fip)}
-                </div>
+        // 2-column grid instead of a single stacked column — fits the same
+        // content in roughly half the vertical space, so this card no longer
+        // needs its own internal scrollbar on typical screens.
+        compContainer.innerHTML = `
+            <h3 style="margin-top:0; color:var(--krn-blue); font-size:1.1rem; border-bottom:1px solid var(--border-color); padding-bottom:10px; margin-bottom:15px;">Total Rewards & Benefits</h3>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; overflow-y:auto; flex-grow:1; padding-right:5px;">
+                ${makeMiniBox('Base Salary', baseSalary)}
+                ${makeMiniBox('Car Monetization', cma)}
+                ${makeMiniBox('Child Care Allowance', childCare)}
+                ${makeMiniBox('Wellness Allowance', wellness)}
+                ${makeMiniBox('COLA', cola)}
+                ${makeMiniBox('Communication', comms)}
+                ${fuel ? makeMiniBox('Fuel Allowance (Liters)', fuel) : ''}
+                ${makeMiniBox('OSR', osr)}
+                ${makeMiniBox('GF', gf)}
+                ${makeMiniBox('FIP', fip)}
             </div>
         `;
     }
@@ -358,6 +357,7 @@ function openPFModal() {
         modal = document.createElement('div');
         modal.id = 'pfModal';
         modal.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; display:flex; align-items:center; justify-content:center; backdrop-filter: blur(4px);";
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
         document.body.appendChild(modal);
     }
     
@@ -461,6 +461,7 @@ function openAdvancesModal() {
         modal = document.createElement('div');
         modal.id = 'advModal';
         modal.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; display:flex; align-items:center; justify-content:center; backdrop-filter: blur(4px);";
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
         document.body.appendChild(modal);
     }
     
@@ -523,8 +524,20 @@ setTimeout(() => {
     if (advCardEl) {
         advCardEl.style.cursor = 'pointer';
         advCardEl.onclick = openAdvancesModal;
+        advCardEl.onkeydown = (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openAdvancesModal(); }
+        };
     }
 }, 500);
+
+// Escape closes whichever modal (PF or Advances ledger) is currently open.
+document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    ['pfModal', 'advModal'].forEach(id => {
+        let modal = document.getElementById(id);
+        if (modal && modal.style.display !== 'none') modal.style.display = 'none';
+    });
+});
 
 // ========================================================================
 // 5. TAX CERTIFICATE GENERATION

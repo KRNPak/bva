@@ -41,7 +41,10 @@
         .bento-card {
             background: var(--bg-card); border: 1px solid var(--border-color);
             border-radius: 12px; padding: 20px; box-shadow: var(--card-shadow);
-            display: flex; flex-direction: column;
+            display: flex; flex-direction: column; position: relative;
+        }
+        .bento-card[tabindex]:focus-visible {
+            outline: 2px solid var(--krn-blue); outline-offset: 2px;
         }
         .locked-card { opacity: 0.6; filter: grayscale(100%); pointer-events: none; position: relative; }
         .locked-overlay {
@@ -84,34 +87,12 @@ input:checked + .theme-slider {
 input:checked + .theme-slider:before {
   transform: translateX(22px);
 }
-/* 1. Strict Alignment for Header and Grid */
-  .dashboard-header, 
-  .dashboard-content {
-      width: 100% !important;
-      max-width: 1600px !important;
-      margin-left: auto !important;
-      margin-right: auto !important;
-      padding-left: 20px !important;
-      padding-right: 20px !important;
-      box-sizing: border-box !important;
-  }
-  
-  /* 2. Ensure grid stretches to fill the constrained space */
-  .dashboard-grid {
-      display: grid !important;
-      grid-template-columns: repeat(5, 1fr) !important;
-      gap: 20px !important;
-      width: 100% !important;
-  }
+/* Let this page scroll vertically — the shared theme sets
+   body { overflow: hidden } for a different, fixed-height page,
+   which would clip bento cards on shorter viewports here. */
+  body { overflow-y: auto !important; }
 
-  /* 3. Responsive grid stacking */
-  @media (max-width: 1400px) {
-      .dashboard-grid {
-          grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)) !important;
-      }
-  }
-
-  /* 4. Formatting for Login Inputs */
+  /* Formatting for Login Inputs */
   .login-input {
       width: 100%;
       padding: 12px 15px;
@@ -162,21 +143,23 @@ input:checked + .theme-slider:before {
                 </div>
             </div>
            <div class="toggles-container" style="display: flex; align-items: center;">
-                <div style="display: flex; align-items: center; border-left: 1px solid var(--border-color); padding-left: 15px; margin-right: 15px; height: 24px;">
-                    <span id="themeLabel" style="margin-right: 10px; font-size: 0.75rem; font-weight: bold; color: var(--text-primary); letter-spacing: 1px;">LIGHT</span>
+                <div style="display: flex; align-items: center; gap: 8px; border-left: 1px solid var(--border-color); padding-left: 15px; margin-right: 15px; height: 24px;">
+                    <span aria-hidden="true" style="font-size: 0.9rem;">☀️</span>
                     <label class="theme-switch">
-                        <input type="checkbox" id="themeToggleCheckbox" onchange="toggleTheme()">
+                        <input type="checkbox" id="themeToggleCheckbox" onchange="toggleTheme()" aria-label="Toggle dark mode">
                         <span class="theme-slider"></span>
                     </label>
+                    <span aria-hidden="true" style="font-size: 0.9rem;">🌙</span>
+                    <span id="themeLabel" style="font-size: 0.7rem; font-weight: bold; color: var(--text-secondary); letter-spacing: 1px;">LIGHT</span>
                 </div>
             </div>
         </div>
 
      <!-- BENTO WIDGETS -->
         <div class="portal-grid">
-           <div id="compensationCard" class="card" style="grid-row: span 2; display: flex; flex-direction: column;"></div> 
+           <div id="compensationCard" class="bento-card" style="grid-row: span 2;"></div>
            <!-- 1. Provident Fund -->
-            <div class="bento-card" id="pfCard" onclick="openPFModal()" style="cursor: pointer;" title="Click for Monthly Ledger">
+            <div class="bento-card" id="pfCard" onclick="openPFModal()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openPFModal();}" tabindex="0" role="button" style="cursor: pointer;" title="Click for Monthly Ledger">
                 <h3 style="margin: 0 0 15px 0; color: var(--text-primary); font-size: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Provident Fund</h3>
                 <div class="val" style="margin-bottom: 15px;"><span class="val-unit">Net Closing Balance (PKR)</span><span class="val-num" id="pfTotal">0</span></div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.75rem;">
@@ -232,7 +215,7 @@ input:checked + .theme-slider:before {
                 <button onclick="generateTaxPDF()" style="background: transparent; color: var(--krn-blue); border: 1px solid var(--krn-blue); padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%;">Generate PDF &darr;</button>
             </div>
             <!-- 5. Advances (MOVED HERE) -->
-            <div class="bento-card" id="advancesCard">
+            <div class="bento-card" id="advancesCard" tabindex="0" role="button">
                 <h3 style="margin: 0 0 15px 0; color: var(--text-primary); font-size: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Salary Advances</h3>
                 <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 5px; display: flex; align-items: center;">
                     Max Available Limit (PKR)
