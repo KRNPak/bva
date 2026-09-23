@@ -5,6 +5,7 @@ let db = {};
 let emp = null;
 
 function getSafeNum(val) {
+    if (typeof val === 'string') val = val.replace(/,/g, '');
     let num = parseFloat(val);
     return isNaN(num) ? 0 : num;
 }
@@ -12,7 +13,6 @@ function getSafeNum(val) {
 function animateValue(id, end, duration = 1000) {
     let obj = document.getElementById(id);
     if (!obj) return;
-    let start = 0;
     let startTimestamp = null;
     const step = (timestamp) => {
         if (!startTimestamp) startTimestamp = timestamp;
@@ -31,22 +31,15 @@ function animateValue(id, end, duration = 1000) {
 async function authenticateUser() {
     const cnicInputEl = document.getElementById('cnicInput');
     const cnicInput = cnicInputEl ? cnicInputEl.value.trim() : "";
-    
     const btn = document.querySelector('.login-btn') || document.querySelector('button');
     const errorMsg = document.getElementById('loginError') || document.getElementById('errorMsg');
 
     if (!cnicInput) {
-        if (errorMsg) {
-            errorMsg.innerText = "Please enter your CNIC.";
-            errorMsg.style.display = "block";
-        }
+        if (errorMsg) { errorMsg.innerText = "Please enter your CNIC."; errorMsg.style.display = "block"; }
         return;
     }
 
-    if (btn) {
-        btn.innerText = "Verifying...";
-        btn.disabled = true;
-    }
+    if (btn) { btn.innerText = "Verifying..."; btn.disabled = true; }
     if (errorMsg) errorMsg.style.display = "none";
 
     try {
@@ -56,9 +49,7 @@ async function authenticateUser() {
             body: JSON.stringify({ cnic: cnicInput })
         });
 
-        if (!response.ok) {
-            throw new Error("Invalid CNIC or Data Not Found");
-        }
+        if (!response.ok) throw new Error("Invalid CNIC or Data Not Found");
 
         db = await response.json();
         emp = db.emp; 
@@ -69,31 +60,19 @@ async function authenticateUser() {
         if (dashboardScreen) dashboardScreen.style.display = 'block';
         
         renderDashboard();
-
     } catch (error) {
-        if (errorMsg) {
-            errorMsg.innerText = error.message || "Access Denied. Please check your CNIC.";
-            errorMsg.style.display = "block";
-        }
-        if (btn) {
-            btn.innerText = "Secure Login \u2192";
-            btn.disabled = false;
-        }
+        if (errorMsg) { errorMsg.innerText = error.message || "Access Denied. Please check your CNIC."; errorMsg.style.display = "block"; }
+        if (btn) { btn.innerText = "Secure Login \u2192"; btn.disabled = false; }
     }
 }
 
 function logout() {
-    db = {};
-    emp = null;
+    db = {}; emp = null;
     document.getElementById('cnicInput').value = "";
     document.getElementById('loginScreen').style.display = 'flex';
     document.getElementById('dashboardScreen').style.display = 'none';
-    
     let btn = document.querySelector('.login-btn');
-    if (btn) {
-        btn.innerText = "Secure Login \u2192";
-        btn.disabled = false;
-    }
+    if (btn) { btn.innerText = "Secure Login \u2192"; btn.disabled = false; }
 }
 
 // ========================================================================
@@ -102,139 +81,158 @@ function logout() {
 function renderDashboard() {
     if (!emp) return;
 
-    // --- 1. AGGRESSIVE & DYNAMIC DATA EXTRACTION ---
     let rawEmp = db.emp?._raw || db.emp || {};
     let rawGrat = db.myGratuity?._raw || db.myGratuity || {};
     let rawPF = db.myPF?._raw || db.myPF || {};
     let rawTrain = db.myTraining?._raw || db.myTraining || {};
 
-    let employeeName = rawGrat['Employee Name'] || rawPF['Employee'] || rawEmp['Employee Name'] || "Employee Name";
-    
-    // Dynamically hunt for Employee Code
+    let employeeName = rawEmp['Employee Name'] || rawGrat['Employee Name'] || rawPF['Employee'] || "Employee Name";
     let empCodeKey = Object.keys(rawEmp).find(k => k.toLowerCase().replace(/\s/g, '') === 'employeecode' || k.toLowerCase() === 'emp code');
-    let designation = (empCodeKey ? rawEmp[empCodeKey] : null) || rawEmp['Employee Code'] || rawEmp['Position code'] || "";
-
-    // Dynamically hunt for Grade
-    let gradeKey = Object.keys(rawEmp).find(k => k.toLowerCase().includes('grade'));
-    let gradeStr = gradeKey ? rawEmp[gradeKey] : "0";
-    let gradeNum = parseInt(gradeStr.toString().replace(/\D/g, '')) || 0;
-
-    let salaryKey = Object.keys(rawEmp).find(k => k.toLowerCase().includes('salary'));
-    let baseSalary = getSafeNum(salaryKey ? rawEmp[salaryKey] : 0) || getSafeNum(rawPF['Base Salary']);
-
-    // Date formatting to DD-MMM-YYYY
-    let joinDateKey = Object.keys(rawEmp).find(k => k.toLowerCase().includes('join') || k.toLowerCase() === 'doj');
-    let joinDateStr = joinDateKey ? rawEmp[joinDateKey] : null;
-    let formattedJoinDate = "N/A";
-    let joinDateObj = new Date();
+    let designation = (empCodeKey ? rawEmp[empCodeKey] : null) || rawEmp['Employee Code'] || rawEmp['Designation'] || "";
+    let gradeNum = getSafeNum(rawEmp['Position Grade'] || rawEmp['Grade'] || 0);
+    let baseSalary = getSafeNum(rawEmp['Base Salary'] || rawPF['Base Salary']);
     
+    // Date parsing for dd/mm/yyyy
+    let joinDateStr = rawEmp['Joining Date'] || "";
+    let joinDateObj = new Date();
+    let formattedJoinDate = "N/A";
     if (joinDateStr) {
-        let d = new Date(joinDateStr);
-        if (!isNaN(d)) {
-            joinDateObj = d;
+        let parts = joinDateStr.split('/');
+        if (parts.length === 3) {
+            joinDateObj = new Date(parts[2], parts[1] - 1, parts[0]);
             const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-            formattedJoinDate = `${String(d.getDate()).padStart(2, '0')}-${months[d.getMonth()]}-${d.getFullYear()}`;
-        } else {
-            formattedJoinDate = joinDateStr; 
+            formattedJoinDate = `${parts[0]}-${months[joinDateObj.getMonth()]}-${parts[2]}`;
         }
     }
 
-    // --- 2. HEADER DOM UPDATES ---
     if(document.getElementById('empNameDisplay')) document.getElementById('empNameDisplay').innerText = employeeName;
     if(document.getElementById('empDesignationDisplay')) document.getElementById('empDesignationDisplay').innerText = designation;
     if(document.getElementById('empGradeDisplay')) document.getElementById('empGradeDisplay').innerText = gradeNum;
     if(document.getElementById('empJoinDisplay')) document.getElementById('empJoinDisplay').innerText = formattedJoinDate;
 
-    // --- 3. DATES & TENURE ---
-    const baselineDateTenure = new Date(); 
-    let tenureMonths = (baselineDateTenure.getFullYear() - joinDateObj.getFullYear()) * 12;
+    // Time calculations based on financial year
+    let today = new Date();
+    let currentFYYear = today.getMonth() < 6 ? today.getFullYear() - 1 : today.getFullYear();
+    let fyStart = new Date(currentFYYear, 6, 1); // July 1st
+    let daysPassedInFY = Math.max(0, (today - fyStart) / (1000 * 60 * 60 * 24));
+    
+    let tenureMonths = (today.getFullYear() - joinDateObj.getFullYear()) * 12;
     tenureMonths -= joinDateObj.getMonth();
-    tenureMonths += baselineDateTenure.getMonth();
+    tenureMonths += today.getMonth();
+
+    // --- NEW: BENTO BOX SUMMARY (Compensation & Benefits) ---
+    let compContainer = document.getElementById('compensationBentoContainer');
+    if (!compContainer) {
+        // If the container doesn't exist, we dynamically inject it below the header
+        let dashContent = document.querySelector('.dashboard-content') || document.body;
+        compContainer = document.createElement('div');
+        compContainer.id = 'compensationBentoContainer';
+        dashContent.insertBefore(compContainer, dashContent.firstChild);
+    }
+    
+    let cma = getSafeNum(rawEmp['Car monetization']);
+    let childCare = getSafeNum(rawEmp['Child care allowance']);
+    let wellness = getSafeNum(rawEmp['Wellness allowance']);
+    let cola = getSafeNum(rawEmp['COLA']);
+    let comms = getSafeNum(rawEmp['Communication reimbursement']);
+    let fuel = rawEmp['Fuel allowed in Liters'] ? rawEmp['Fuel allowed in Liters'] + " Liters" : "0 Liters";
+    let osr = rawEmp['OSR'] || "-";
+    let gf = rawEmp['GF'] || "-";
+    let fip = rawEmp['FIP'] || "-";
+
+    compContainer.innerHTML = `
+        <div style="background:var(--bg-card); border-radius:12px; padding:20px; margin-bottom:20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+            <h3 style="margin-top:0; color:var(--krn-blue); font-size:1.1rem; border-bottom:1px solid var(--border-color); padding-bottom:10px;">Total Rewards & Benefits</h3>
+            <div style="display:flex; flex-wrap:wrap; gap:15px; margin-top:15px;">
+                <div style="flex: 1 1 150px; background:rgba(0,0,0,0.02); padding:10px 15px; border-radius:8px;">
+                    <span style="font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase;">Base Salary</span>
+                    <div style="font-size:1.2rem; font-weight:bold; color:var(--text-primary); margin-top:5px;">${Math.round(baseSalary).toLocaleString('en-PK')}</div>
+                </div>
+                <div style="flex: 1 1 150px; background:rgba(0,0,0,0.02); padding:10px 15px; border-radius:8px;">
+                    <span style="font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase;">Allowances (CMA, Wellness, etc.)</span>
+                    <div style="font-size:1.2rem; font-weight:bold; color:var(--text-primary); margin-top:5px;">${Math.round(cma + childCare + wellness + cola + comms).toLocaleString('en-PK')}</div>
+                </div>
+                <div style="flex: 1 1 150px; background:rgba(0,0,0,0.02); padding:10px 15px; border-radius:8px;">
+                    <span style="font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase;">Fuel Allowance</span>
+                    <div style="font-size:1.2rem; font-weight:bold; color:var(--text-primary); margin-top:5px;">${fuel}</div>
+                </div>
+                <div style="flex: 1 1 150px; background:rgba(0,0,0,0.02); padding:10px 15px; border-radius:8px;">
+                    <span style="font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase;">Donor Distributions</span>
+                    <div style="font-size:0.9rem; font-weight:bold; color:var(--text-primary); margin-top:5px;">OSR: ${osr} | GF: ${gf} | FIP: ${fip}</div>
+                </div>
+            </div>
+        </div>
+    `;
 
     // --- A. PROVIDENT FUND ---
     let pf = db.myPF || {};
-    let openingPF = getSafeNum(pf.openingpf || rawPF['Opening PF']);
-    let openingProfit = getSafeNum(pf.openingprofit || rawPF['Opening Profit']);
+    let openingPF = getSafeNum(rawPF['Opening PF'] || pf.openingpf);
+    let openingProfit = getSafeNum(rawPF['Opening Profit'] || pf.openingprofit);
+    let openingWithdrawals = getSafeNum(rawPF['Opening Withdrawals']); // For modal display
     
-    let pfEmpCont = openingPF / 2;
-    let pfEmployerCont = openingPF / 2;
+    let pfEmpCont = 0;
+    let pfEmployerCont = 0;
     let pfProfit = openingProfit;
-
-    const monthPrefixes = ['july', 'august', 'september', 'october', 'november', 'december', 'january', 'february', 'march', 'april', 'may', 'june'];
+    
+    const monthPrefixes = ['July', 'August', 'September', 'October', 'November', 'December', 'January', 'February', 'March', 'April', 'May', 'June'];
     for (let month of monthPrefixes) {
-        let mTotalCont = getSafeNum(pf[month + 'contribution']);
-        let mProfit = getSafeNum(pf[month + 'profit']);
+        let mTotalCont = getSafeNum(rawPF[`${month} Contribution`]);
+        let mProfit = getSafeNum(rawPF[`${month} Profit`]);
         pfEmpCont += (mTotalCont / 2);
         pfEmployerCont += (mTotalCont / 2);
         pfProfit += mProfit;
     }
 
-    let pfWithdrawals = getSafeNum(pf.permanentwithdrawals || rawPF['Permanent Withdrawals']);
+    let currentWithdrawals = getSafeNum(rawPF['Permanent withdrawals']);
     if (tenureMonths < 3) pfEmployerCont = 0; 
     
-    let pfTotal = (pfEmpCont + pfEmployerCont + pfProfit) - pfWithdrawals;
+    let pfTotal = (openingPF + pfEmpCont + pfEmployerCont + pfProfit) - currentWithdrawals;
     
     if(document.getElementById('pfTotal')) animateValue('pfTotal', pfTotal);
-    if(document.getElementById('pfEmployee')) document.getElementById('pfEmployee').innerText = Math.round(pfEmpCont).toLocaleString('en-PK');
-    if(document.getElementById('pfEmployer')) document.getElementById('pfEmployer').innerText = Math.round(pfEmployerCont).toLocaleString('en-PK');
+    if(document.getElementById('pfEmployee')) document.getElementById('pfEmployee').innerText = Math.round(openingPF/2 + pfEmpCont).toLocaleString('en-PK');
+    if(document.getElementById('pfEmployer')) document.getElementById('pfEmployer').innerText = Math.round(openingPF/2 + pfEmployerCont).toLocaleString('en-PK');
     if(document.getElementById('pfProfit')) document.getElementById('pfProfit').innerText = Math.round(pfProfit).toLocaleString('en-PK');
-    if(document.getElementById('pfWithdrawal')) document.getElementById('pfWithdrawal').innerText = Math.round(pfWithdrawals).toLocaleString('en-PK');
+    if(document.getElementById('pfWithdrawal')) document.getElementById('pfWithdrawal').innerText = Math.round(currentWithdrawals).toLocaleString('en-PK');
 
-    // --- B. TRAINING BUDGET ---
-    let trAccrued = getSafeNum(rawTrain['Accrued'] || rawTrain.accrued);
-    let trUtilized = getSafeNum(rawTrain['Expense'] || rawTrain.expense);
-    let trAvailable = Math.max(0, trAccrued - trUtilized);
+    // --- B. TRAINING BUDGET (Daily Accrual against Master Budget) ---
+    let histAccrued = getSafeNum(rawTrain['Accrued']);
+    let histExpense = getSafeNum(rawTrain['Expense']);
+    let annualBudget = getSafeNum(rawEmp['Training']);
+    
+    let currentFYAccrual = (annualBudget / 365.25) * daysPassedInFY;
+    let totalAccrued = histAccrued + currentFYAccrual;
+    let trAvailable = Math.max(0, totalAccrued - histExpense);
     
     if(document.getElementById('trainAvailable')) animateValue('trainAvailable', trAvailable);
-    if(document.getElementById('trainAccrued')) document.getElementById('trainAccrued').innerText = Math.round(trAccrued).toLocaleString('en-PK');
-    if(document.getElementById('trainUtilized')) document.getElementById('trainUtilized').innerText = Math.round(trUtilized).toLocaleString('en-PK');
+    if(document.getElementById('trainAccrued')) document.getElementById('trainAccrued').innerText = Math.round(totalAccrued).toLocaleString('en-PK');
+    if(document.getElementById('trainUtilized')) document.getElementById('trainUtilized').innerText = Math.round(histExpense).toLocaleString('en-PK');
 
-    // --- C. GRATUITY ---
-    let gratOpening = getSafeNum(rawGrat['Gratuity Payable'] || rawGrat.gratuitypayable || rawGrat['Opening'] || 0);
-    
-    let today = new Date();
-    let baselineDate = new Date(today.getFullYear() - (today.getMonth() < 6 ? 1 : 0), 6, 1); 
-    let gratPeriodAccrual = today > baselineDate ? (baseSalary * 0.5) * ((today - baselineDate) / (1000 * 60 * 60 * 24 * 365.25)) : 0;
-    
+    // --- C. GRATUITY (Daily Proration on 4.17%) ---
+    let gratOpening = getSafeNum(rawGrat['Gratuity Payable']);
+    // Accrual: Base Salary * 4.17% per month * months passed (equivalent to daily proration over the year)
+    let gratPeriodAccrual = (baseSalary * 0.0417) * 12 * (daysPassedInFY / 365.25); 
     let gratTotal = gratOpening + gratPeriodAccrual;
     
     if(document.getElementById('gratuityTotal')) animateValue('gratuityTotal', gratTotal);
-    
     let gratBreakdownEl = document.getElementById('gratuityBreakdown');
     if(gratBreakdownEl) {
         gratBreakdownEl.innerHTML = `
             <span style="color: var(--text-secondary);">Opening:</span> <strong>${Math.round(gratOpening).toLocaleString('en-PK')}</strong><br>
-            <span style="color: var(--text-secondary);">Accrued:</span> <strong>${Math.round(gratPeriodAccrual).toLocaleString('en-PK')}</strong>
+            <span style="color: var(--text-secondary);">FY Accrued:</span> <strong>${Math.round(gratPeriodAccrual).toLocaleString('en-PK')}</strong>
         `;
     }
 
-    // --- D. SALARY ADVANCES ---
-   // --- D. SALARY ADVANCES ---
-    let existingAdvancesAmount = 0;
-    let existingAdvancesCount = 0;
-    
+    // --- D. SALARY ADVANCES (Dynamic Column Parsing) ---
     let validAdvances = [];
     if (Array.isArray(db.myAdvances)) {
-        validAdvances = db.myAdvances.filter(adv => adv && Object.keys(adv).length > 0 && getSafeNum(adv?.amount || adv?.balance || adv?._raw?.['Advances'] || adv?._raw?.['Amount']) > 0);
+        validAdvances = db.myAdvances.filter(adv => adv && Object.keys(adv).length > 0 && getSafeNum(adv?._raw?.['Advances']) > 0);
     } else if (db.myAdvances && typeof db.myAdvances === 'object') {
-        if (getSafeNum(db.myAdvances.amount || db.myAdvances.balance || db.myAdvances._raw?.['Advances'] || db.myAdvances._raw?.['Amount']) > 0) {
-            validAdvances = [db.myAdvances];
-        }
+        if (getSafeNum(db.myAdvances._raw?.['Advances']) > 0) validAdvances = [db.myAdvances];
     }
 
-    existingAdvancesCount = validAdvances.length;
-    existingAdvancesAmount = validAdvances.reduce((sum, adv) => sum + getSafeNum(adv?.amount || adv?.balance || adv?._raw?.['Advances'] || adv?._raw?.['Amount']), 0);
+    let existingAdvancesAmount = 0; // Total Outstanding Balance
+    let existingAdvancesCount = validAdvances.length;
 
-    let advMax = 0; 
-    if (existingAdvancesCount < 3) {
-        let condition1 = baseSalary > 0 ? (baseSalary * 5) : (pfTotal * 0.6); 
-        let condition2 = (pfTotal * 0.6) - existingAdvancesAmount;
-        advMax = Math.max(0, Math.min(condition1, condition2));
-    }
-    
-    if(document.getElementById('advLimit')) animateValue('advLimit', advMax);
-
-    // INJECT THE PROGRESS BARS
     let advancesContainer = document.getElementById('activeAdvancesContainer');
     if (advancesContainer) {
         advancesContainer.innerHTML = ''; 
@@ -243,10 +241,25 @@ function renderDashboard() {
             
             validAdvances.forEach((adv, index) => {
                 let rawA = adv._raw || adv;
-                let advAmount = getSafeNum(adv.amount || rawA['Advances'] || rawA['Amount']);
-                let settled = getSafeNum(rawA[' Previously settled ']) + getSafeNum(rawA[' Settled outside of payroll ']);
-                let balance = advAmount - settled;
-                let percent = advAmount > 0 ? (settled / advAmount) * 100 : 0;
+                let advAmount = getSafeNum(rawA['Advances']);
+                let histSettled = getSafeNum(rawA['Previously settled']) + getSafeNum(rawA['Settled outside of payroll']);
+                
+                // Dynamically sum all columns after 'Settled outside of payroll'
+                let currentFYDeductions = 0;
+                let keys = Object.keys(rawA);
+                let settleIdx = keys.findIndex(k => k.toLowerCase().includes('settled outside of payroll'));
+                
+                if (settleIdx > -1) {
+                    for (let i = settleIdx + 1; i < keys.length; i++) {
+                        currentFYDeductions += getSafeNum(rawA[keys[i]]);
+                    }
+                }
+                
+                let totalSettled = histSettled + currentFYDeductions;
+                let balance = Math.max(0, advAmount - totalSettled);
+                existingAdvancesAmount += balance;
+                
+                let percent = advAmount > 0 ? (totalSettled / advAmount) * 100 : 0;
                 
                 advancesHTML += `
                     <div style="margin-bottom: 12px;">
@@ -266,22 +279,36 @@ function renderDashboard() {
             advancesContainer.innerHTML = '<div style="margin-top: 15px; font-size: 0.8rem; color: var(--text-secondary);">No active advances.</div>';
         }
     }
-    
+
+    let advMax = 0; 
+    if (existingAdvancesCount < 3) {
+        let condition1 = baseSalary > 0 ? (baseSalary * 5) : (pfTotal * 0.6); 
+        let condition2 = (pfTotal * 0.6) - existingAdvancesAmount;
+        advMax = Math.max(0, Math.min(condition1, condition2));
+    }
+    if(document.getElementById('advLimit')) animateValue('advLimit', advMax);
+
     // --- E. LEASE FINANCE LIMIT ---
     let leaseLimitEl = document.getElementById('leaseLimit');
     let leaseCard = document.getElementById('leaseCard');
+    let isEligible = String(rawEmp['Lease eligibility']).toLowerCase() === 'yes';
+    let leaseAvailed = getSafeNum(rawEmp['Lease amount availed']);
     
-    if (gradeNum < 9) {
+    if (!isEligible) {
         if (leaseLimitEl) leaseLimitEl.innerText = "0";
         if (leaseCard) {
             leaseCard.classList.add('locked-card');
             if (!leaseCard.querySelector('.locked-overlay')) {
-                leaseCard.insertAdjacentHTML('beforeend', `<div class="locked-overlay"><span style="font-size:1.2rem; font-weight:bold; color:var(--text-primary);">Grade 9+ Only</span></div>`);
+                leaseCard.insertAdjacentHTML('beforeend', `<div class="locked-overlay"><span style="font-size:1.2rem; font-weight:bold; color:var(--text-primary);">Not Eligible</span></div>`);
             }
         }
     } else {
-        let overageTraining = trUtilized > trAccrued ? (trUtilized - trAccrued) : 0;
-        let leaseLimit = (pfTotal + gratTotal) - (existingAdvancesAmount + overageTraining);
+        if (leaseCard) leaseCard.classList.remove('locked-card');
+        let lockedOverlay = leaseCard?.querySelector('.locked-overlay');
+        if (lockedOverlay) lockedOverlay.remove();
+
+        let overageTraining = histExpense > totalAccrued ? (histExpense - totalAccrued) : 0;
+        let leaseLimit = (pfTotal + gratTotal) - (existingAdvancesAmount + overageTraining + leaseAvailed);
         leaseLimit = Math.max(0, leaseLimit);
         
         if (leaseLimitEl) {
@@ -292,7 +319,7 @@ function renderDashboard() {
 }
 
 // ========================================================================
-// 4. MODALS (PF LEDGER)
+// 4. MODALS (PF LEDGER & ADVANCES)
 // ========================================================================
 function openPFModal() {
     let modal = document.getElementById('pfModal');
@@ -303,24 +330,23 @@ function openPFModal() {
         document.body.appendChild(modal);
     }
     
-    let pf = db.myPF || {};
     let rawPF = db.myPF?._raw || db.myPF || {};
-    if (Object.keys(rawPF).length === 0 && Object.keys(pf).length === 0) return;
+    if (Object.keys(rawPF).length === 0) return;
 
-    let openingPF = getSafeNum(pf.openingpf || rawPF['Opening PF']);
-    let openingProfit = getSafeNum(pf.openingprofit || rawPF['Opening Profit']);
+    let openingPF = getSafeNum(rawPF['Opening PF']);
+    let openingProfit = getSafeNum(rawPF['Opening Profit']);
+    let openingWithdrawals = getSafeNum(rawPF['Opening Withdrawals']);
     let currentEmpTotal = openingPF / 2;
     let currentErTotal = openingPF / 2;
     let currentProfitTotal = openingProfit;
 
     const displayMonths = ['Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-    const monthPrefixes = ['july', 'august', 'september', 'october', 'november', 'december', 'january', 'february', 'march', 'april', 'may', 'june'];
+    const monthPrefixes = ['July', 'August', 'September', 'October', 'November', 'December', 'January', 'February', 'March', 'April', 'May', 'June'];
     
     let monthlyRows = '';
-    
     for (let i = 0; i < 12; i++) {
-        let mTotalCont = getSafeNum(pf[monthPrefixes[i] + 'contribution']);
-        let mProfit = getSafeNum(pf[monthPrefixes[i] + 'profit']);
+        let mTotalCont = getSafeNum(rawPF[`${monthPrefixes[i]} Contribution`]);
+        let mProfit = getSafeNum(rawPF[`${monthPrefixes[i]} Profit`]);
         let mEmp = mTotalCont / 2;
         let mEr = mTotalCont / 2;
         
@@ -340,8 +366,8 @@ function openPFModal() {
         }
     }
 
-    let pfWithdrawals = getSafeNum(pf.permanentwithdrawals || rawPF['Permanent Withdrawals']);
-    let grandTotal = (currentEmpTotal + currentErTotal + currentProfitTotal) - pfWithdrawals;
+    let currentWithdrawals = getSafeNum(rawPF['Permanent withdrawals']);
+    let grandTotal = (currentEmpTotal + currentErTotal + currentProfitTotal) - currentWithdrawals;
 
     modal.innerHTML = `
         <div style="background:var(--bg-card); padding:25px; border-radius:12px; width:90%; max-width:550px; color:var(--text-primary); box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
@@ -350,7 +376,11 @@ function openPFModal() {
             </div>
             <table style="width:100%; border-collapse:collapse; font-size:0.85rem; margin-bottom:10px;">
                 <tr style="border-bottom: 1px dashed var(--border-color);">
-                    <td style="padding:8px 0; color:var(--text-secondary);">Opening PF</td>
+                    <td style="padding:8px 0; color:var(--text-secondary);">Historical Opening Withdrawals</td>
+                    <td style="padding:8px 0; text-align:right;"><strong>${Math.round(openingWithdrawals).toLocaleString('en-PK')}</strong></td>
+                </tr>
+                <tr style="border-bottom: 1px dashed var(--border-color);">
+                    <td style="padding:8px 0; color:var(--text-secondary);">Opening PF (Net)</td>
                     <td style="padding:8px 0; text-align:right;"><strong>${Math.round(openingPF).toLocaleString('en-PK')}</strong></td>
                 </tr>
                 <tr style="border-bottom: 1px solid var(--border-color);">
@@ -377,8 +407,8 @@ function openPFModal() {
             <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
                 <tbody>
                     <tr style="border-bottom: 1px solid var(--border-color);">
-                        <td style="padding:6px 0; color:var(--krn-orange);">Less: Withdrawals</td>
-                        <td style="padding:6px 0; text-align:right; font-weight:bold; color:var(--krn-orange);">- ${Math.round(pfWithdrawals).toLocaleString('en-PK')}</td>
+                        <td style="padding:6px 0; color:var(--krn-orange);">Less: Current FY Withdrawals</td>
+                        <td style="padding:6px 0; text-align:right; font-weight:bold; color:var(--krn-orange);">- ${Math.round(currentWithdrawals).toLocaleString('en-PK')}</td>
                     </tr>
                     <tr style="background:rgba(0,0,0,0.02);">
                         <td style="padding:15px 5px; font-weight:bold; color:var(--krn-blue);">Net Closing Balance</td>
@@ -394,46 +424,79 @@ function openPFModal() {
     modal.style.display = 'flex';
 }
 
-// ========================================================================
-// 5. THEME MANAGEMENT
-// ========================================================================
-function toggleTheme() {
-    const body = document.body;
-    const label = document.getElementById('themeLabel');
-    const checkbox = document.getElementById('themeToggleCheckbox');
-    
-    if (body.classList.contains('light-mode')) {
-        body.classList.replace('light-mode', 'dark-mode');
-        localStorage.setItem('krnTheme', 'dark-mode');
-        if(label) label.innerText = 'DARK';
-        if(checkbox) checkbox.checked = true;
-    } else {
-        body.classList.replace('dark-mode', 'light-mode');
-        localStorage.setItem('krnTheme', 'light-mode');
-        if(label) label.innerText = 'LIGHT';
-        if(checkbox) checkbox.checked = false;
+function openAdvancesModal() {
+    let modal = document.getElementById('advModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'advModal';
+        modal.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; display:flex; align-items:center; justify-content:center; backdrop-filter: blur(4px);";
+        document.body.appendChild(modal);
     }
+    
+    let validAdvances = (Array.isArray(db.myAdvances) ? db.myAdvances : [db.myAdvances]).filter(adv => adv && getSafeNum(adv?._raw?.['Advances']) > 0);
+
+    let rows = '';
+    validAdvances.forEach((adv, i) => {
+        let rawA = adv._raw || adv;
+        let amt = getSafeNum(rawA['Advances']);
+        let histSettled = getSafeNum(rawA['Previously settled']) + getSafeNum(rawA['Settled outside of payroll']);
+        
+        let currentFYDeductions = 0;
+        let keys = Object.keys(rawA);
+        let settleIdx = keys.findIndex(k => k.toLowerCase().includes('settled outside of payroll'));
+        if (settleIdx > -1) {
+            for (let j = settleIdx + 1; j < keys.length; j++) {
+                currentFYDeductions += getSafeNum(rawA[keys[j]]);
+            }
+        }
+        let totalSettled = histSettled + currentFYDeductions;
+        let balance = Math.max(0, amt - totalSettled);
+
+        rows += `
+            <tr style="border-bottom: 1px solid var(--border-color);">
+                <td style="padding:8px 0;">Advance ${i+1}<br><small style="color:var(--text-secondary);">${rawA['Date of advance'] || '-'}</small></td>
+                <td style="padding:8px 0; text-align:right;">${Math.round(amt).toLocaleString('en-PK')}</td>
+                <td style="padding:8px 0; text-align:right;">${Math.round(totalSettled).toLocaleString('en-PK')}</td>
+                <td style="padding:8px 0; text-align:right; font-weight:bold; color:var(--krn-orange);">${Math.round(balance).toLocaleString('en-PK')}</td>
+            </tr>
+        `;
+    });
+
+    modal.innerHTML = `
+        <div style="background:var(--bg-card); padding:25px; border-radius:12px; width:90%; max-width:600px; color:var(--text-primary); box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+                <h2 style="margin:0; color:var(--krn-blue);">Advances Ledger Breakdown</h2>
+            </div>
+            ${rows ? `
+            <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                <thead>
+                    <tr style="border-bottom:2px solid var(--border-color); color:var(--text-secondary);">
+                        <th style="text-align:left; padding:8px 0;">Detail</th>
+                        <th style="text-align:right; padding:8px 0;">Total</th>
+                        <th style="text-align:right; padding:8px 0;">Settled</th>
+                        <th style="text-align:right; padding:8px 0;">Balance</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>` : '<p style="color:var(--text-secondary);">No active advances.</p>'}
+            <div style="text-align:right; margin-top:20px;">
+                <button onclick="document.getElementById('advModal').style.display='none'" style="background:var(--krn-blue); color:white; border:none; padding:8px 20px; border-radius:6px; cursor:pointer;">Close</button>
+            </div>
+        </div>
+    `;
+    modal.style.display = 'flex';
 }
 
-(function initializeTheme() {
-    const savedTheme = localStorage.getItem('krnTheme') || 'light-mode';
-    document.body.className = savedTheme;
-    
-    setTimeout(() => {
-        const label = document.getElementById('themeLabel');
-        const checkbox = document.getElementById('themeToggleCheckbox');
-        if (savedTheme === 'dark-mode') {
-            if(label) label.innerText = 'DARK';
-            if(checkbox) checkbox.checked = true;
-        } else {
-            if(label) label.innerText = 'LIGHT';
-            if(checkbox) checkbox.checked = false;
-        }
-    }, 100);
-})();
+setTimeout(() => {
+    let advCardEl = document.getElementById('advancesCard');
+    if (advCardEl) {
+        advCardEl.style.cursor = 'pointer';
+        advCardEl.onclick = openAdvancesModal;
+    }
+}, 500);
 
 // ========================================================================
-// 6. TAX CERTIFICATE GENERATION
+// 5. TAX CERTIFICATE GENERATION
 // ========================================================================
 function numberToWords(num) {
     let a = ['','One ','Two ','Three ','Four ', 'Five ','Six ','Seven ','Eight ','Nine ','Ten ','Eleven ','Twelve ','Thirteen ','Fourteen ','Fifteen ','Sixteen ','Seventeen ','Eighteen ','Nineteen '];
@@ -453,10 +516,7 @@ function numberToWords(num) {
 function generateTaxPDF() {
     if (!emp) return;
     const template = document.getElementById('pdfTemplate');
-    if (!template) {
-        alert("PDF Template not found in HTML.");
-        return;
-    }
+    if (!template) return;
     
     let yearSelect = document.getElementById('taxYearSelect');
     let yearText = yearSelect ? yearSelect.options[yearSelect.selectedIndex].text : "July 2026 - June 2027";
@@ -484,7 +544,6 @@ function generateTaxPDF() {
         
         let mTaxKey = Object.keys(rawTax).find(k => k.toLowerCase().startsWith(m.toLowerCase()) && !k.toLowerCase().includes('cpr'));
         let mTax = getSafeNum(mTaxKey ? rawTax[mTaxKey] : 0);
-        
         totalTax += mTax;
         
         rowsHTML += `
@@ -499,10 +558,8 @@ function generateTaxPDF() {
     let taxWords = numberToWords(Math.round(totalTax)) || "Zero";
     let formattedToday = new Date().toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' });
     
-    // Tightened padding, margins, and line-heights to fit comfortably on one page
     template.innerHTML = `
         <div style="padding: 20px; font-family: 'Arial', sans-serif; color: #333; background: white; font-size: 11px; line-height: 1.4;">
-            
             <div style="text-align: center; margin-bottom: 15px;">
                 <img src="https://www.karandaaz.com.pk/_next/static/media/navbar-logo.0ebe1390.svg" style="height: 40px; margin-bottom: 8px;" alt="Karandaaz">
                 <h3 style="margin: 0; font-size: 14px; text-decoration: underline;">CERTIFICATE OF COLLECTION OR DEDUCTION OF INCOME TAX</h3>
@@ -558,7 +615,7 @@ function generateTaxPDF() {
     template.style.display = 'block';
     
     html2pdf().from(template).set({
-        margin: [0.25, 0.3, 0.25, 0.3], // Reduced from 0.5 to keep content on one page
+        margin: [0.25, 0.3, 0.25, 0.3], 
         filename: `Tax_Certificate_${cnic}.pdf`,
         image: { type: 'jpeg', quality: 0.98 }, 
         html2canvas: { scale: 2, useCORS: true },
@@ -569,65 +626,38 @@ function generateTaxPDF() {
 }
 
 // ========================================================================
-// 7. ADVANCES MODAL & CLICK LISTENER
+// 6. THEME MANAGEMENT
 // ========================================================================
-function openAdvancesModal() {
-    let modal = document.getElementById('advModal');
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.id = 'advModal';
-        modal.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; display:flex; align-items:center; justify-content:center; backdrop-filter: blur(4px);";
-        document.body.appendChild(modal);
-    }
+function toggleTheme() {
+    const body = document.body;
+    const label = document.getElementById('themeLabel');
+    const checkbox = document.getElementById('themeToggleCheckbox');
     
-    let validAdvances = (Array.isArray(db.myAdvances) ? db.myAdvances : [db.myAdvances]).filter(adv => adv && getSafeNum(adv?._raw?.['Advances'] || adv?.amount) > 0);
-
-    let rows = '';
-    validAdvances.forEach((adv, i) => {
-        let rawA = adv._raw || adv;
-        let amt = getSafeNum(rawA['Advances'] || rawA['Amount'] || adv.amount);
-        let settled = getSafeNum(rawA[' Previously settled ']) + getSafeNum(rawA[' Settled outside of payroll ']);
-        
-        rows += `
-            <tr style="border-bottom: 1px solid var(--border-color);">
-                <td style="padding:8px 0;">Advance ${i+1}<br><small style="color:var(--text-secondary);">${rawA['Date of advance'] || '-'}</small></td>
-                <td style="padding:8px 0; text-align:right;">${Math.round(amt).toLocaleString('en-PK')}</td>
-                <td style="padding:8px 0; text-align:right;">${Math.round(settled).toLocaleString('en-PK')}</td>
-                <td style="padding:8px 0; text-align:right; font-weight:bold; color:var(--krn-orange);">${Math.round(amt - settled).toLocaleString('en-PK')}</td>
-            </tr>
-        `;
-    });
-
-    modal.innerHTML = `
-        <div style="background:var(--bg-card); padding:25px; border-radius:12px; width:90%; max-width:600px; color:var(--text-primary); box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
-                <h2 style="margin:0; color:var(--krn-blue);">Advances Breakdown</h2>
-            </div>
-            ${rows ? `
-            <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
-                <thead>
-                    <tr style="border-bottom:2px solid var(--border-color); color:var(--text-secondary);">
-                        <th style="text-align:left; padding:8px 0;">Detail</th>
-                        <th style="text-align:right; padding:8px 0;">Total</th>
-                        <th style="text-align:right; padding:8px 0;">Settled</th>
-                        <th style="text-align:right; padding:8px 0;">Balance</th>
-                    </tr>
-                </thead>
-                <tbody>${rows}</tbody>
-            </table>` : '<p style="color:var(--text-secondary);">No active advances.</p>'}
-            <div style="text-align:right; margin-top:20px;">
-                <button onclick="document.getElementById('advModal').style.display='none'" style="background:var(--krn-blue); color:white; border:none; padding:8px 20px; border-radius:6px; cursor:pointer;">Close</button>
-            </div>
-        </div>
-    `;
-    modal.style.display = 'flex';
+    if (body.classList.contains('light-mode')) {
+        body.classList.replace('light-mode', 'dark-mode');
+        localStorage.setItem('krnTheme', 'dark-mode');
+        if(label) label.innerText = 'DARK';
+        if(checkbox) checkbox.checked = true;
+    } else {
+        body.classList.replace('dark-mode', 'light-mode');
+        localStorage.setItem('krnTheme', 'light-mode');
+        if(label) label.innerText = 'LIGHT';
+        if(checkbox) checkbox.checked = false;
+    }
 }
 
-// Attach the click listener to the card once the file loads
-setTimeout(() => {
-    let advCardEl = document.getElementById('advancesCard');
-    if (advCardEl) {
-        advCardEl.style.cursor = 'pointer';
-        advCardEl.onclick = openAdvancesModal;
-    }
-}, 500);
+(function initializeTheme() {
+    const savedTheme = localStorage.getItem('krnTheme') || 'light-mode';
+    document.body.className = savedTheme;
+    setTimeout(() => {
+        const label = document.getElementById('themeLabel');
+        const checkbox = document.getElementById('themeToggleCheckbox');
+        if (savedTheme === 'dark-mode') {
+            if(label) label.innerText = 'DARK';
+            if(checkbox) checkbox.checked = true;
+        } else {
+            if(label) label.innerText = 'LIGHT';
+            if(checkbox) checkbox.checked = false;
+        }
+    }, 100);
+})();
