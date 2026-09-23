@@ -58,12 +58,16 @@ module.exports = async (req, res) => {
     }
 
     try {
-        const { cnic } = req.body || {};
-        if (!cnic || cnic.length < 13) {
-            return res.status(400).json({ error: 'Valid CNIC required.' });
+        const { cnic, empCode: submittedEmpCode } = req.body || {};
+        const GENERIC_AUTH_ERROR = { error: 'Invalid Employee Code or CNIC. Please verify and try again.' };
+
+        // Both fields are required — CNIC alone is not enough to authenticate.
+        if (!cnic || cnic.length < 13 || !submittedEmpCode || !String(submittedEmpCode).trim()) {
+            return res.status(400).json(GENERIC_AUTH_ERROR);
         }
 
         const cleanCnic = String(cnic).replace(/[^0-9]/g, '');
+        const cleanSubmittedCode = String(submittedEmpCode).trim().toLowerCase();
         const CURRENT_YEAR = 'FY2027';
         const baseDir = path.join(process.cwd(), 'Data', CURRENT_YEAR, 'HR_Data');
 
@@ -81,12 +85,22 @@ module.exports = async (req, res) => {
             return String(r[cnicKey]).replace(/[^0-9]/g, '') === cleanCnic;
         });
 
+        // Same generic message whether the CNIC doesn't exist at all, or the
+        // code doesn't match that CNIC's record — never reveal which one failed,
+        // so this endpoint can't be used to enumerate valid CNICs.
         if (!emp) {
-            return res.status(404).json({ error: 'CNIC not found in Master Records.' });
+            return res.status(404).json(GENERIC_AUTH_ERROR);
         }
 
         let empCodeKey = Object.keys(emp).find(k => k === 'employeecode' || k === 'empcode');
         let empCode = empCodeKey ? String(emp[empCodeKey]).trim() : null;
+
+        // The CNIC and the employee code must belong to the SAME record.
+        // This is the actual authentication check — everything below this
+        // line only runs once both factors have been verified server-side.
+        if (!empCode || empCode.toLowerCase() !== cleanSubmittedCode) {
+            return res.status(401).json(GENERIC_AUTH_ERROR);
+        }
 
         const matchCode = (r) => {
             if (!r) return false;
