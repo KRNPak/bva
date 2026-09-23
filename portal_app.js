@@ -105,6 +105,7 @@ function renderDashboard() {
         }
     }
 
+    // --- RESTORED HEADER DOM UPDATES ---
     if(document.getElementById('empNameDisplay')) document.getElementById('empNameDisplay').innerText = employeeName;
     if(document.getElementById('empDesignationDisplay')) document.getElementById('empDesignationDisplay').innerText = designation;
     if(document.getElementById('empGradeDisplay')) document.getElementById('empGradeDisplay').innerText = gradeNum;
@@ -120,20 +121,26 @@ function renderDashboard() {
     tenureMonths -= joinDateObj.getMonth();
     tenureMonths += today.getMonth();
 
-   // --- NEW: BENTO BOX SUMMARY (Compensation & Benefits) ---
+    // --- NEW: BENTO BOX SUMMARY (Compensation & Benefits) ---
     let compContainer = document.getElementById('compensationCard');
     if (!compContainer) {
-        // Inject directly into the CSS grid alongside the other cards
-        let grid = document.querySelector('.dashboard-grid') || document.querySelector('.grid-container') || document.querySelector('.dashboard-content');
-        if (grid) {
-            compContainer = document.createElement('div');
-            compContainer.id = 'compensationCard';
-            compContainer.className = 'card';
-            // Force the card to stretch downwards to match the mockup
-            compContainer.style.gridRow = 'span 2';
-            compContainer.style.display = 'flex';
-            compContainer.style.flexDirection = 'column';
-            grid.insertBefore(compContainer, grid.firstChild);
+        compContainer = document.createElement('div');
+        compContainer.id = 'compensationCard';
+        compContainer.className = 'card';
+        compContainer.style.gridRow = 'span 2'; // Stretches it down to match the mockup
+        compContainer.style.display = 'flex';
+        compContainer.style.flexDirection = 'column';
+        
+        // Find the PF Card and inject the box directly *before* it in the grid
+        let pfTotalEl = document.getElementById('pfTotal');
+        let pfCard = pfTotalEl ? pfTotalEl.closest('.card') : null;
+        
+        if (pfCard && pfCard.parentNode) {
+            pfCard.parentNode.insertBefore(compContainer, pfCard);
+        } else {
+            // Fallback if PF card isn't found
+            let grid = document.querySelector('.dashboard-grid') || document.querySelector('.grid-container') || document.querySelector('.dashboard-content');
+            if(grid) grid.appendChild(compContainer);
         }
     }
     
@@ -148,7 +155,6 @@ function renderDashboard() {
         let gf = rawEmp['GF'];
         let fip = rawEmp['FIP'];
 
-        // Helper function to build individual split boxes (hides them if empty/0)
         function makeMiniBox(title, value) {
             if (value === undefined || value === null || value === 0 || value === "0" || value === "" || value === "-") return '';
             let displayVal = typeof value === 'number' ? Math.round(value).toLocaleString('en-PK') : value;
@@ -180,7 +186,7 @@ function renderDashboard() {
     let pf = db.myPF || {};
     let openingPF = getSafeNum(rawPF['Opening PF'] || pf.openingpf);
     let openingProfit = getSafeNum(rawPF['Opening Profit'] || pf.openingprofit);
-    let openingWithdrawals = getSafeNum(rawPF['Opening Withdrawals']); // For modal display
+    let openingWithdrawals = getSafeNum(rawPF['Opening Withdrawals']); 
     
     let pfEmpCont = 0;
     let pfEmployerCont = 0;
@@ -206,7 +212,7 @@ function renderDashboard() {
     if(document.getElementById('pfProfit')) document.getElementById('pfProfit').innerText = Math.round(pfProfit).toLocaleString('en-PK');
     if(document.getElementById('pfWithdrawal')) document.getElementById('pfWithdrawal').innerText = Math.round(currentWithdrawals).toLocaleString('en-PK');
 
-    // --- B. TRAINING BUDGET (Daily Accrual against Master Budget) ---
+    // --- B. TRAINING BUDGET ---
     let histAccrued = getSafeNum(rawTrain['Accrued']);
     let histExpense = getSafeNum(rawTrain['Expense']);
     let annualBudget = getSafeNum(rawEmp['Training']);
@@ -219,9 +225,8 @@ function renderDashboard() {
     if(document.getElementById('trainAccrued')) document.getElementById('trainAccrued').innerText = Math.round(totalAccrued).toLocaleString('en-PK');
     if(document.getElementById('trainUtilized')) document.getElementById('trainUtilized').innerText = Math.round(histExpense).toLocaleString('en-PK');
 
-    // --- C. GRATUITY (Daily Proration on 4.17%) ---
+    // --- C. GRATUITY ---
     let gratOpening = getSafeNum(rawGrat['Gratuity Payable']);
-    // Accrual: Base Salary * 4.17% per month * months passed (equivalent to daily proration over the year)
     let gratPeriodAccrual = (baseSalary * 0.0417) * 12 * (daysPassedInFY / 365.25); 
     let gratTotal = gratOpening + gratPeriodAccrual;
     
@@ -234,7 +239,7 @@ function renderDashboard() {
         `;
     }
 
-    // --- D. SALARY ADVANCES (Dynamic Column Parsing) ---
+    // --- D. SALARY ADVANCES ---
     let validAdvances = [];
     if (Array.isArray(db.myAdvances)) {
         validAdvances = db.myAdvances.filter(adv => adv && Object.keys(adv).length > 0 && getSafeNum(adv?._raw?.['Advances']) > 0);
@@ -242,7 +247,7 @@ function renderDashboard() {
         if (getSafeNum(db.myAdvances._raw?.['Advances']) > 0) validAdvances = [db.myAdvances];
     }
 
-    let existingAdvancesAmount = 0; // Total Outstanding Balance
+    let existingAdvancesAmount = 0; 
     let existingAdvancesCount = validAdvances.length;
 
     let advancesContainer = document.getElementById('activeAdvancesContainer');
@@ -256,7 +261,6 @@ function renderDashboard() {
                 let advAmount = getSafeNum(rawA['Advances']);
                 let histSettled = getSafeNum(rawA['Previously settled']) + getSafeNum(rawA['Settled outside of payroll']);
                 
-                // Dynamically sum all columns after 'Settled outside of payroll'
                 let currentFYDeductions = 0;
                 let keys = Object.keys(rawA);
                 let settleIdx = keys.findIndex(k => k.toLowerCase().includes('settled outside of payroll'));
