@@ -545,8 +545,6 @@ function numberToWords(num) {
 
 function generateTaxPDF() {
     if (!emp) return;
-    const template = document.getElementById('pdfTemplate');
-    if (!template) return;
     
     let yearSelect = document.getElementById('taxYearSelect');
     let yearText = yearSelect ? yearSelect.options[yearSelect.selectedIndex].text : "July 2026 - June 2027";
@@ -578,9 +576,9 @@ function generateTaxPDF() {
         
         rowsHTML += `
             <tr style="border-bottom: 1px solid #ddd;">
-                <td style="padding: 4px 8px; border: 1px solid #ddd;">${m}</td>
-                <td style="padding: 4px 8px; border: 1px solid #ddd;">${cprRef}</td>
-                <td style="padding: 4px 8px; border: 1px solid #ddd; text-align: right;">${Math.round(mTax).toLocaleString('en-PK')}</td>
+                <td style="padding: 6px 8px; border: 1px solid #ddd;">${m}</td>
+                <td style="padding: 6px 8px; border: 1px solid #ddd;">${cprRef}</td>
+                <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right;">${Math.round(mTax).toLocaleString('en-PK')}</td>
             </tr>
         `;
     });
@@ -588,10 +586,11 @@ function generateTaxPDF() {
     let taxWords = numberToWords(Math.round(totalTax)) || "Zero";
     let formattedToday = new Date().toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' });
     
-    template.innerHTML = `
-        <div style="padding: 20px; font-family: 'Arial', sans-serif; color: #333; background: white; font-size: 11px; line-height: 1.4;">
+    // Build the exact HTML layout for the document
+    let contentHTML = `
+        <div style="font-family: 'Arial', sans-serif; color: #333; background: white; font-size: 11px; line-height: 1.4; max-width: 800px; margin: 0 auto;">
             <div style="text-align: center; margin-bottom: 15px;">
-                <img src="https://www.karandaaz.com.pk/_next/static/media/navbar-logo.0ebe1390.svg" style="height: 40px; margin-bottom: 8px;" alt="Karandaaz">
+                <img src="https://www.karandaaz.com.pk/_next/static/media/navbar-logo.0ebe1390.svg" style="height: 45px; margin-bottom: 10px;" alt="Karandaaz">
                 <h3 style="margin: 0; font-size: 14px; text-decoration: underline;">CERTIFICATE OF COLLECTION OR DEDUCTION OF INCOME TAX</h3>
                 <h4 style="margin: 3px 0 0 0; font-size: 12px;">UNDER RULE 42</h4>
             </div>
@@ -611,16 +610,16 @@ function generateTaxPDF() {
             <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 11px; text-align: left;">
                 <thead>
                     <tr style="background-color: #f9f9f9;">
-                        <th style="padding: 4px 8px; border: 1px solid #ddd; width: 20%;">Month</th>
-                        <th style="padding: 4px 8px; border: 1px solid #ddd; width: 50%;">CPR Reference No.</th>
-                        <th style="padding: 4px 8px; border: 1px solid #ddd; text-align: right; width: 30%;">Tax Withheld (PKR amount)</th>
+                        <th style="padding: 6px 8px; border: 1px solid #ddd; width: 20%;">Month</th>
+                        <th style="padding: 6px 8px; border: 1px solid #ddd; width: 50%;">CPR Reference No.</th>
+                        <th style="padding: 6px 8px; border: 1px solid #ddd; text-align: right; width: 30%;">Tax Withheld (PKR amount)</th>
                     </tr>
                 </thead>
                 <tbody>
                     ${rowsHTML}
                     <tr style="font-weight: bold; background-color: #f9f9f9;">
-                        <td colspan="2" style="padding: 4px 8px; border: 1px solid #ddd; text-align: right;">TOTAL</td>
-                        <td style="padding: 4px 8px; border: 1px solid #ddd; text-align: right;">${Math.round(totalTax).toLocaleString('en-PK')}</td>
+                        <td colspan="2" style="padding: 6px 8px; border: 1px solid #ddd; text-align: right;">TOTAL</td>
+                        <td style="padding: 6px 8px; border: 1px solid #ddd; text-align: right;">${Math.round(totalTax).toLocaleString('en-PK')}</td>
                     </tr>
                 </tbody>
             </table>
@@ -641,20 +640,45 @@ function generateTaxPDF() {
             </div>
         </div>
     `;
-    
-    template.style.display = 'block';
-    
-    html2pdf().from(template).set({
-        margin: [0.25, 0.3, 0.25, 0.3], 
-        filename: `Tax_Certificate_${cnic}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 }, 
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-    }).save().then(() => {
-        template.style.display = 'none';
-    });
-}
 
+    // Create a hidden iframe for native, text-selectable printing
+    let printFrame = document.createElement('iframe');
+    printFrame.style.position = 'absolute';
+    printFrame.style.top = '-10000px';
+    printFrame.style.left = '-10000px';
+    document.body.appendChild(printFrame);
+
+    let frameDoc = printFrame.contentWindow ? printFrame.contentWindow.document : printFrame.contentDocument;
+    frameDoc.open();
+    frameDoc.write(`
+        <html>
+            <head>
+                <title>Tax_Certificate_${formattedCnic}</title>
+                <style>
+                    /* Ensure backgrounds and margins print perfectly */
+                    @media print {
+                        @page { margin: 0.5in; }
+                        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    }
+                </style>
+            </head>
+            <body>
+                ${contentHTML}
+            </body>
+        </html>
+    `);
+    frameDoc.close();
+
+    // Wait a brief moment for the logo image to fetch, then trigger the print dialogue
+    setTimeout(() => {
+        printFrame.contentWindow.focus();
+        printFrame.contentWindow.print();
+        // Clean up the iframe after closing the dialogue
+        setTimeout(() => {
+            document.body.removeChild(printFrame);
+        }, 1000);
+    }, 500);
+}
 // ========================================================================
 // 6. THEME MANAGEMENT
 // ========================================================================
