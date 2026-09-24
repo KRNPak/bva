@@ -10,6 +10,34 @@ function getSafeNum(val) {
     return isNaN(num) ? 0 : num;
 }
 
+// Advances.csv has 12 month-deduction columns headed by Excel serial-date
+// numbers (e.g. "46204" = 01-Jul-2026). The old code tried to sum
+// "every column after Settled outside of payroll" by position in
+// Object.keys() — but JavaScript automatically reorders integer-like
+// object keys to the FRONT of enumeration, regardless of insertion order.
+// That silently made settleIdx land on the last key every time, so the
+// month-wise deductions were never actually added — only "Previously
+// settled" (prior-FY) ever counted. This identifies month columns by
+// pattern instead of position, and only counts a month once its date has
+// arrived (future scheduled deductions aren't "settled" yet).
+function getAdvanceSettledAmount(rawA) {
+    let histSettled = getSafeNum(rawA['Previously settled']) + getSafeNum(rawA['Settled outside of payroll']);
+    let today = new Date();
+    let currentFYDeductions = 0;
+
+    Object.keys(rawA).forEach(key => {
+        let trimmedKey = key.trim();
+        if (!/^\d{4,6}$/.test(trimmedKey)) return; // not a serial-date column
+        let serial = parseInt(trimmedKey, 10);
+        let monthDate = new Date(Date.UTC(1899, 11, 30) + serial * 86400000);
+        if (monthDate <= today) {
+            currentFYDeductions += getSafeNum(rawA[key]);
+        }
+    });
+
+    return histSettled + currentFYDeductions;
+}
+
 function animateValue(id, end, duration = 1000) {
     let obj = document.getElementById(id);
     if (!obj) return;
@@ -248,7 +276,8 @@ function renderDashboard() {
 
         if (gratuityCard) {
             gratuityCard.classList.add('locked-card');
-            gratuityCard.disabled = true;
+            gratuityCard.setAttribute('aria-disabled', 'true');
+            gratuityCard.tabIndex = -1;
             if (!gratuityCard.querySelector('.locked-overlay')) {
                 gratuityCard.insertAdjacentHTML('beforeend', `<div class="locked-overlay"><span style="font-size:1.2rem; font-weight:bold; color:var(--text-primary);">Not Eligible</span></div>`);
             }
@@ -256,7 +285,8 @@ function renderDashboard() {
     } else {
         if (gratuityCard) {
             gratuityCard.classList.remove('locked-card');
-            gratuityCard.disabled = false;
+            gratuityCard.removeAttribute('aria-disabled');
+            gratuityCard.tabIndex = 0;
             let lockedOverlay = gratuityCard.querySelector('.locked-overlay');
             if (lockedOverlay) lockedOverlay.remove();
         }
@@ -307,19 +337,7 @@ function renderDashboard() {
             validAdvances.forEach((adv, index) => {
                 let rawA = adv._raw || adv;
                 let advAmount = getSafeNum(rawA['Advances']);
-                let histSettled = getSafeNum(rawA['Previously settled']) + getSafeNum(rawA['Settled outside of payroll']);
-                
-                let currentFYDeductions = 0;
-                let keys = Object.keys(rawA);
-                let settleIdx = keys.findIndex(k => k.toLowerCase().includes('settled outside of payroll'));
-                
-                if (settleIdx > -1) {
-                    for (let i = settleIdx + 1; i < keys.length; i++) {
-                        currentFYDeductions += getSafeNum(rawA[keys[i]]);
-                    }
-                }
-                
-                let totalSettled = histSettled + currentFYDeductions;
+                let totalSettled = getAdvanceSettledAmount(rawA);
                 let balance = Math.max(0, advAmount - totalSettled);
                 existingAdvancesAmount += balance;
                 
@@ -360,6 +378,30 @@ function renderDashboard() {
         advMax = Math.max(0, Math.min(condition1, condition2));
     }
     if(document.getElementById('advLimit')) animateValue('advLimit', advMax);
+
+    // --- E2. EXPENSE CLAIMS ---
+    let validExpenses = [];
+    if (Array.isArray(db.myExpenses)) {
+        validExpenses = db.myExpenses.filter(x => x && Object.keys(x).length > 0);
+    } else if (db.myExpenses && typeof db.myExpenses === 'object' && Object.keys(db.myExpenses).length > 0) {
+        validExpenses = [db.myExpenses];
+    }
+
+    let expPaidTotal = 0, expPendingCount = 0, expPendingAmount = 0;
+    validExpenses.forEach(x => {
+        let rawX = x._raw || x;
+        let amt = getSafeNum(rawX['Report Total (PKR)']);
+        let status = String(rawX['Report Status'] || '').trim().toLowerCase();
+        if (status === 'paid') {
+            expPaidTotal += amt;
+        } else {
+            expPendingCount += 1;
+            expPendingAmount += amt;
+        }
+    });
+    if(document.getElementById('expPaidTotal')) animateValue('expPaidTotal', expPaidTotal);
+    if(document.getElementById('expPendingCount')) document.getElementById('expPendingCount').innerText = expPendingCount;
+    if(document.getElementById('expPendingAmount')) document.getElementById('expPendingAmount').innerText = Math.round(expPendingAmount).toLocaleString('en-PK');
 
     // --- E. LEASE FINANCE LIMIT ---
     let leaseLimitEl = document.getElementById('leaseLimit');
@@ -515,17 +557,7 @@ function openAdvancesModal() {
     validAdvances.forEach((adv, i) => {
         let rawA = adv._raw || adv;
         let amt = getSafeNum(rawA['Advances']);
-        let histSettled = getSafeNum(rawA['Previously settled']) + getSafeNum(rawA['Settled outside of payroll']);
-        
-        let currentFYDeductions = 0;
-        let keys = Object.keys(rawA);
-        let settleIdx = keys.findIndex(k => k.toLowerCase().includes('settled outside of payroll'));
-        if (settleIdx > -1) {
-            for (let j = settleIdx + 1; j < keys.length; j++) {
-                currentFYDeductions += getSafeNum(rawA[keys[j]]);
-            }
-        }
-        let totalSettled = histSettled + currentFYDeductions;
+        let totalSettled = getAdvanceSettledAmount(rawA);
         let balance = Math.max(0, amt - totalSettled);
 
         rows += `
@@ -563,6 +595,59 @@ function openAdvancesModal() {
     modal.style.display = 'flex';
 }
 
+function openExpensesModal() {
+    let modal = document.getElementById('expModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'expModal';
+        modal.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; display:flex; align-items:center; justify-content:center; backdrop-filter: blur(4px);";
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
+        document.body.appendChild(modal);
+    }
+
+    let validExpenses = (Array.isArray(db.myExpenses) ? db.myExpenses : [db.myExpenses]).filter(x => x && Object.keys(x._raw || x).length > 0);
+    // Most recent first
+    validExpenses.sort((a, b) => new Date((b._raw||b)['Expense Report Date']) - new Date((a._raw||a)['Expense Report Date']));
+
+    let rows = '';
+    validExpenses.forEach(x => {
+        let rawX = x._raw || x;
+        let amt = getSafeNum(rawX['Report Total (PKR)']);
+        let status = rawX['Report Status'] || '-';
+        let statusColor = String(status).toLowerCase() === 'paid' ? 'var(--krn-green)' : 'var(--krn-orange)';
+        rows += `
+            <tr style="border-bottom: 1px solid var(--border-color);">
+                <td style="padding:8px 0;">${rawX['Purpose'] || '-'}<br><small style="color:var(--text-secondary);">${rawX['Expense Report Date'] || '-'}</small></td>
+                <td style="padding:8px 0; text-align:right;">${Math.round(amt).toLocaleString('en-PK')}</td>
+                <td style="padding:8px 0; text-align:right; font-weight:bold; color:${statusColor};">${status}</td>
+            </tr>
+        `;
+    });
+
+    modal.innerHTML = `
+        <div style="background:var(--bg-card); padding:25px; border-radius:12px; width:90%; max-width:600px; max-height:80vh; overflow-y:auto; color:var(--text-primary); box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+                <h2 style="margin:0; color:var(--krn-blue);">Expense Claims History</h2>
+            </div>
+            ${rows ? `
+            <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                <thead>
+                    <tr style="border-bottom:2px solid var(--border-color); color:var(--text-secondary);">
+                        <th style="text-align:left; padding:8px 0;">Claim</th>
+                        <th style="text-align:right; padding:8px 0;">Amount</th>
+                        <th style="text-align:right; padding:8px 0;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>` : '<p style="color:var(--text-secondary);">No expense claims on record.</p>'}
+            <div style="text-align:right; margin-top:20px;">
+                <button onclick="document.getElementById('expModal').style.display='none'" style="background:var(--krn-blue); color:white; border:none; padding:8px 20px; border-radius:6px; cursor:pointer;">Close</button>
+            </div>
+        </div>
+    `;
+    modal.style.display = 'flex';
+}
+
 setTimeout(() => {
     let advCardEl = document.getElementById('advancesCard');
     if (advCardEl) {
@@ -572,6 +657,9 @@ setTimeout(() => {
 }, 500);
 
 function openGratuityModal() {
+    let gratCardEl = document.getElementById('gratuityCard');
+    if (gratCardEl && gratCardEl.classList.contains('locked-card')) return;
+
     let modal = document.getElementById('gratModal');
     if (!modal) {
         modal = document.createElement('div');
@@ -694,7 +782,7 @@ function openTrainingModal() {
 // Escape closes whichever modal (PF, Gratuity, Training or Advances ledger) is currently open.
 document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
-    ['pfModal', 'gratModal', 'trainModal', 'advModal'].forEach(id => {
+    ['pfModal', 'gratModal', 'trainModal', 'advModal', 'expModal'].forEach(id => {
         let modal = document.getElementById(id);
         if (modal && modal.style.display !== 'none') modal.style.display = 'none';
     });
@@ -901,7 +989,7 @@ function logoutUser() {
     emp = null;
 
     // Close any open modals.
-    ['pfModal', 'gratModal', 'trainModal', 'advModal'].forEach(id => {
+    ['pfModal', 'gratModal', 'trainModal', 'advModal', 'expModal'].forEach(id => {
         let modal = document.getElementById(id);
         if (modal) modal.style.display = 'none';
     });
