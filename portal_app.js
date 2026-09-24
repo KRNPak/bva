@@ -100,7 +100,9 @@ function renderDashboard() {
 
     let employeeName = rawEmp['Employee Name'] || rawGrat['Employee Name'] || rawPF['Employee'] || "Employee Name";
     let empCodeKey = Object.keys(rawEmp).find(k => k.toLowerCase().replace(/\s/g, '') === 'employeecode' || k.toLowerCase() === 'emp code');
-    let designation = (empCodeKey ? rawEmp[empCodeKey] : null) || rawEmp['Employee Code'] || rawEmp['Designation'] || "";
+    let empCode = (empCodeKey ? rawEmp[empCodeKey] : null) || "";
+    let jobTitle = rawEmp['Designation'] || rawEmp['designation'] || "";
+    let department = rawEmp['Department'] || rawEmp['department'] || "";
     let gradeNum = getSafeNum(rawEmp['Position Grade'] || rawEmp['Grade'] || 0);
     let baseSalary = getSafeNum(rawEmp['Base Salary'] || rawPF['Base Salary']);
     
@@ -117,11 +119,20 @@ function renderDashboard() {
         }
     }
 
-    // --- RESTORED HEADER DOM UPDATES ---
+    // --- SIDEBAR IDENTITY DOM UPDATES ---
     if(document.getElementById('empNameDisplay')) document.getElementById('empNameDisplay').innerText = employeeName;
-    if(document.getElementById('empDesignationDisplay')) document.getElementById('empDesignationDisplay').innerText = designation;
     if(document.getElementById('empGradeDisplay')) document.getElementById('empGradeDisplay').innerText = gradeNum;
     if(document.getElementById('empJoinDisplay')) document.getElementById('empJoinDisplay').innerText = formattedJoinDate;
+    if(document.getElementById('empCodeDisplay')) document.getElementById('empCodeDisplay').innerText = empCode;
+    if(document.getElementById('empPositionDisplay')) {
+        document.getElementById('empPositionDisplay').innerText = [jobTitle, department].filter(Boolean).join(', ');
+    }
+    let initialsEl = document.getElementById('empInitials');
+    if (initialsEl) {
+        let words = String(employeeName).trim().split(/\s+/).filter(Boolean);
+        let initials = words.length ? (words[0][0] + (words[words.length - 1][0] || '')).toUpperCase() : '--';
+        initialsEl.innerText = initials;
+    }
 
     // Time calculations based on financial year
     let today = new Date();
@@ -133,28 +144,9 @@ function renderDashboard() {
     tenureMonths -= joinDateObj.getMonth();
     tenureMonths += today.getMonth();
 
-    // --- NEW: BENTO BOX SUMMARY (Compensation & Benefits) ---
-    let compContainer = document.getElementById('compensationCard');
-    if (!compContainer) {
-        compContainer = document.createElement('div');
-        compContainer.id = 'compensationCard';
-        compContainer.className = 'bento-card';
-        compContainer.style.gridRow = 'span 2'; // Stretches it down to match the mockup
-
-        // Find the PF Card and inject the box directly *before* it in the grid
-        let pfTotalEl = document.getElementById('pfTotal');
-        let pfCard = pfTotalEl ? pfTotalEl.closest('.bento-card') : null;
-
-        if (pfCard && pfCard.parentNode) {
-            pfCard.parentNode.insertBefore(compContainer, pfCard);
-        } else {
-            // Fallback if PF card isn't found
-            let grid = document.querySelector('.portal-grid');
-            if(grid) grid.appendChild(compContainer);
-        }
-    }
-    
-    if (compContainer) {
+    // --- SIDEBAR: EMPLOYEE DETAILS (Compensation & Benefits) ---
+    let sidebarList = document.getElementById('sidebarDetailsList');
+    if (sidebarList) {
         let cma = getSafeNum(rawEmp['Car monetization']);
         let childCare = getSafeNum(rawEmp['Child care allowance']);
         let wellness = getSafeNum(rawEmp['Wellness allowance']);
@@ -165,34 +157,28 @@ function renderDashboard() {
         let gf = rawEmp['GF'];
         let fip = rawEmp['FIP'];
 
-        function makeMiniBox(title, value) {
+        function makeDetailRow(title, value) {
             if (value === undefined || value === null || value === 0 || value === "0" || value === "" || value === "-") return '';
             let displayVal = typeof value === 'number' ? Math.round(value).toLocaleString('en-PK') : value;
             return `
-                <div style="background:rgba(0,0,0,0.02); padding:10px 12px; border-radius:8px; border: 1px solid var(--border-color);">
-                    <span style="font-size:0.7rem; color:var(--text-secondary); text-transform:uppercase; font-weight:bold;">${title}</span>
-                    <div style="font-size:1.05rem; font-weight:bold; color:var(--text-primary); margin-top:4px; word-break:break-word;">${displayVal}</div>
+                <div class="sidebar-detail-row">
+                    <span class="sidebar-detail-label">${title}</span>
+                    <span class="sidebar-detail-value">${displayVal}</span>
                 </div>`;
         }
 
-        // 2-column grid instead of a single stacked column — fits the same
-        // content in roughly half the vertical space, so this card no longer
-        // needs its own internal scrollbar on typical screens.
-        compContainer.innerHTML = `
-            <h3 style="margin-top:0; color:var(--krn-blue); font-size:1.1rem; border-bottom:1px solid var(--border-color); padding-bottom:10px; margin-bottom:15px;">Total Rewards & Benefits</h3>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; overflow-y:auto; flex-grow:1; padding-right:5px;">
-                ${makeMiniBox('Base Salary', baseSalary)}
-                ${makeMiniBox('Car Monetization', cma)}
-                ${makeMiniBox('Child Care Allowance', childCare)}
-                ${makeMiniBox('Wellness Allowance', wellness)}
-                ${makeMiniBox('COLA', cola)}
-                ${makeMiniBox('Communication', comms)}
-                ${fuel ? makeMiniBox('Fuel Allowance (Liters)', fuel) : ''}
-                ${makeMiniBox('OSR', osr)}
-                ${makeMiniBox('GF', gf)}
-                ${makeMiniBox('FIP', fip)}
-            </div>
-        `;
+        sidebarList.innerHTML = [
+            makeDetailRow('Base Salary', baseSalary),
+            makeDetailRow('Car Monetization', cma),
+            makeDetailRow('Child Care Allowance', childCare),
+            makeDetailRow('Wellness Allowance', wellness),
+            makeDetailRow('COLA', cola),
+            makeDetailRow('Communication', comms),
+            fuel ? makeDetailRow('Fuel Allowance (L)', fuel) : '',
+            makeDetailRow('OSR', osr),
+            makeDetailRow('GF', gf),
+            makeDetailRow('FIP', fip)
+        ].join('');
     }
 
     // --- A. PROVIDENT FUND ---
@@ -237,6 +223,8 @@ function renderDashboard() {
     if(document.getElementById('trainAvailable')) animateValue('trainAvailable', trAvailable);
     if(document.getElementById('trainAccrued')) document.getElementById('trainAccrued').innerText = Math.round(totalAccrued).toLocaleString('en-PK');
     if(document.getElementById('trainUtilized')) document.getElementById('trainUtilized').innerText = Math.round(histExpense).toLocaleString('en-PK');
+    let trainWarningEl = document.getElementById('trainingWarning');
+    if (trainWarningEl) trainWarningEl.style.display = (histExpense > totalAccrued) ? 'block' : 'none';
 
     // --- C. GRATUITY ---
     let gratOpening = getSafeNum(rawGrat['Gratuity Payable']);
@@ -524,16 +512,132 @@ setTimeout(() => {
     if (advCardEl) {
         advCardEl.style.cursor = 'pointer';
         advCardEl.onclick = openAdvancesModal;
-        advCardEl.onkeydown = (e) => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openAdvancesModal(); }
-        };
     }
 }, 500);
 
-// Escape closes whichever modal (PF or Advances ledger) is currently open.
+function openGratuityModal() {
+    let modal = document.getElementById('gratModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'gratModal';
+        modal.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; display:flex; align-items:center; justify-content:center; backdrop-filter: blur(4px);";
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
+        document.body.appendChild(modal);
+    }
+
+    let rawEmp = db.emp?._raw || db.emp || {};
+    let rawGrat = db.myGratuity?._raw || db.myGratuity || {};
+    if (Object.keys(rawGrat).length === 0) return;
+
+    let today = new Date();
+    let currentFYYear = today.getMonth() < 6 ? today.getFullYear() - 1 : today.getFullYear();
+    let fyStart = new Date(currentFYYear, 6, 1);
+    let daysPassedInFY = Math.max(0, (today - fyStart) / (1000 * 60 * 60 * 24));
+
+    let baseSalary = getSafeNum(rawEmp['Base Salary']);
+    let gratOpening = getSafeNum(rawGrat['Gratuity Payable']);
+    let gratPeriodAccrual = (baseSalary * 0.0417) * 12 * (daysPassedInFY / 365.25);
+    let gratTotal = gratOpening + gratPeriodAccrual;
+
+    modal.innerHTML = `
+        <div style="background:var(--bg-card); padding:25px; border-radius:12px; width:90%; max-width:500px; color:var(--text-primary); box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+                <h2 style="margin:0; color:var(--krn-blue);">Gratuity Accrual Detail</h2>
+            </div>
+            <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                <tbody>
+                    <tr style="border-bottom: 1px dashed var(--border-color);">
+                        <td style="padding:8px 0; color:var(--text-secondary);">Opening Balance (as of last FY close)</td>
+                        <td style="padding:8px 0; text-align:right;"><strong>${Math.round(gratOpening).toLocaleString('en-PK')}</strong></td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid var(--border-color);">
+                        <td style="padding:8px 0; color:var(--text-secondary);">Current FY Accrual (to date)</td>
+                        <td style="padding:8px 0; text-align:right;"><strong>${Math.round(gratPeriodAccrual).toLocaleString('en-PK')}</strong></td>
+                    </tr>
+                    <tr style="background:rgba(0,0,0,0.02);">
+                        <td style="padding:15px 5px; font-weight:bold; color:var(--krn-blue);">Accrued Amount</td>
+                        <td style="padding:15px 5px; text-align:right; font-weight:bold; color:var(--krn-blue); font-size:1.1rem;">${Math.round(gratTotal).toLocaleString('en-PK')} PKR</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div style="font-size:0.72rem; color:var(--text-secondary); margin-top:12px;">Accrual formula: Base Salary &times; 4.17% per month, prorated for days elapsed in the current fiscal year.</div>
+            <div style="text-align:right; margin-top:20px;">
+                <button onclick="document.getElementById('gratModal').style.display='none'" style="background:var(--krn-blue); color:white; border:none; padding:8px 20px; border-radius:6px; cursor:pointer; font-weight:bold;">Close</button>
+            </div>
+        </div>
+    `;
+    modal.style.display = 'flex';
+}
+
+function openTrainingModal() {
+    let modal = document.getElementById('trainModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'trainModal';
+        modal.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; display:flex; align-items:center; justify-content:center; backdrop-filter: blur(4px);";
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
+        document.body.appendChild(modal);
+    }
+
+    let rawEmp = db.emp?._raw || db.emp || {};
+    let rawTrain = db.myTraining?._raw || db.myTraining || {};
+    if (Object.keys(rawTrain).length === 0) return;
+
+    let today = new Date();
+    let currentFYYear = today.getMonth() < 6 ? today.getFullYear() - 1 : today.getFullYear();
+    let fyStart = new Date(currentFYYear, 6, 1);
+    let daysPassedInFY = Math.max(0, (today - fyStart) / (1000 * 60 * 60 * 24));
+
+    let histAccrued = getSafeNum(rawTrain['Accrued']);
+    let histExpense = getSafeNum(rawTrain['Expense']);
+    let annualBudget = getSafeNum(rawEmp['Training']);
+    let currentFYAccrual = (annualBudget / 365.25) * daysPassedInFY;
+    let totalAccrued = histAccrued + currentFYAccrual;
+    let trAvailable = Math.max(0, totalAccrued - histExpense);
+    let isOverdrawn = histExpense > totalAccrued;
+
+    modal.innerHTML = `
+        <div style="background:var(--bg-card); padding:25px; border-radius:12px; width:90%; max-width:500px; color:var(--text-primary); box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
+                <h2 style="margin:0; color:var(--krn-blue);">Training Budget Detail</h2>
+            </div>
+            <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+                <tbody>
+                    <tr style="border-bottom: 1px dashed var(--border-color);">
+                        <td style="padding:8px 0; color:var(--text-secondary);">Annual Entitlement</td>
+                        <td style="padding:8px 0; text-align:right;"><strong>${Math.round(annualBudget).toLocaleString('en-PK')}</strong></td>
+                    </tr>
+                    <tr style="border-bottom: 1px dashed var(--border-color);">
+                        <td style="padding:8px 0; color:var(--text-secondary);">Historical Accrued (opening)</td>
+                        <td style="padding:8px 0; text-align:right;"><strong>${Math.round(histAccrued).toLocaleString('en-PK')}</strong></td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid var(--border-color);">
+                        <td style="padding:8px 0; color:var(--text-secondary);">Current FY Accrual (to date)</td>
+                        <td style="padding:8px 0; text-align:right;"><strong>${Math.round(currentFYAccrual).toLocaleString('en-PK')}</strong></td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid var(--border-color);">
+                        <td style="padding:8px 0; color:var(--krn-orange);">Less: Utilized</td>
+                        <td style="padding:8px 0; text-align:right; font-weight:bold; color:var(--krn-orange);">- ${Math.round(histExpense).toLocaleString('en-PK')}</td>
+                    </tr>
+                    <tr style="background:rgba(0,0,0,0.02);">
+                        <td style="padding:15px 5px; font-weight:bold; color:var(--krn-blue);">Available Limit</td>
+                        <td style="padding:15px 5px; text-align:right; font-weight:bold; color:var(--krn-blue); font-size:1.1rem;">${Math.round(trAvailable).toLocaleString('en-PK')} PKR</td>
+                    </tr>
+                </tbody>
+            </table>
+            ${isOverdrawn ? `<div style="background: rgba(241, 98, 34, 0.1); color: var(--krn-orange); padding: 8px; border-radius: 4px; font-size: 0.75rem; margin-top: 12px; border: 1px solid var(--krn-orange);"><strong>Advance Utilized:</strong> You have dipped into un-accrued funds. A Training Bond is currently active.</div>` : ''}
+            <div style="text-align:right; margin-top:20px;">
+                <button onclick="document.getElementById('trainModal').style.display='none'" style="background:var(--krn-blue); color:white; border:none; padding:8px 20px; border-radius:6px; cursor:pointer; font-weight:bold;">Close</button>
+            </div>
+        </div>
+    `;
+    modal.style.display = 'flex';
+}
+
+// Escape closes whichever modal (PF, Gratuity, Training or Advances ledger) is currently open.
 document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
-    ['pfModal', 'advModal'].forEach(id => {
+    ['pfModal', 'gratModal', 'trainModal', 'advModal'].forEach(id => {
         let modal = document.getElementById(id);
         if (modal && modal.style.display !== 'none') modal.style.display = 'none';
     });
