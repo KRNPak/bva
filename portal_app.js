@@ -235,21 +235,48 @@ function renderDashboard() {
     let gratOpening = getSafeNum(rawGrat['Gratuity Payable']);
     let gratPeriodAccrual = (baseSalary * 0.0417) * 12 * (daysPassedInFY / 365.25); 
     let gratTotal = gratOpening + gratPeriodAccrual;
-    
-    if(document.getElementById('gratuityTotal')) animateValue('gratuityTotal', gratTotal);
+    let gratuityEligible = tenureMonths >= 36; // 3 years' service required
+
+    let gratuityCard = document.getElementById('gratuityCard');
     let gratBreakdownEl = document.getElementById('gratuityBreakdown');
-    if(gratBreakdownEl) {
-        gratBreakdownEl.innerHTML = `
-            <span style="color: var(--text-secondary);">Opening:</span> <strong>${Math.round(gratOpening).toLocaleString('en-PK')}</strong><br>
-            <span style="color: var(--text-secondary);">FY Accrued:</span> <strong>${Math.round(gratPeriodAccrual).toLocaleString('en-PK')}</strong>
-        `;
+
+    if (!gratuityEligible) {
+        if(document.getElementById('gratuityTotal')) document.getElementById('gratuityTotal').innerText = "0";
+        if(gratBreakdownEl) gratBreakdownEl.innerHTML = '';
+        if(document.getElementById('gratuityBarOpening')) document.getElementById('gratuityBarOpening').style.width = '0%';
+        if(document.getElementById('gratuityBarAccrual')) document.getElementById('gratuityBarAccrual').style.width = '0%';
+
+        if (gratuityCard) {
+            gratuityCard.classList.add('locked-card');
+            gratuityCard.disabled = true;
+            if (!gratuityCard.querySelector('.locked-overlay')) {
+                gratuityCard.insertAdjacentHTML('beforeend', `<div class="locked-overlay"><span style="font-size:1.2rem; font-weight:bold; color:var(--text-primary);">Not Eligible</span></div>`);
+            }
+        }
+    } else {
+        if (gratuityCard) {
+            gratuityCard.classList.remove('locked-card');
+            gratuityCard.disabled = false;
+            let lockedOverlay = gratuityCard.querySelector('.locked-overlay');
+            if (lockedOverlay) lockedOverlay.remove();
+        }
+
+        if(document.getElementById('gratuityTotal')) animateValue('gratuityTotal', gratTotal);
+        if(gratBreakdownEl) {
+            gratBreakdownEl.innerHTML = `
+                <span style="color: var(--text-secondary);">Opening:</span> <strong>${Math.round(gratOpening).toLocaleString('en-PK')}</strong><br>
+                <span style="color: var(--text-secondary);">FY Accrued:</span> <strong>${Math.round(gratPeriodAccrual).toLocaleString('en-PK')}</strong>
+            `;
+        }
+
+        let gratOpenPct = gratTotal > 0 ? (gratOpening / gratTotal) * 100 : 0;
+        let gratAccrualPct = gratTotal > 0 ? (gratPeriodAccrual / gratTotal) * 100 : 0;
+        if(document.getElementById('gratuityBarOpening')) document.getElementById('gratuityBarOpening').style.width = gratOpenPct + '%';
+        if(document.getElementById('gratuityBarAccrual')) document.getElementById('gratuityBarAccrual').style.width = gratAccrualPct + '%';
     }
 
-    let gratOpenPct = gratTotal > 0 ? (gratOpening / gratTotal) * 100 : 0;
-    let gratAccrualPct = gratTotal > 0 ? (gratPeriodAccrual / gratTotal) * 100 : 0;
-    if(document.getElementById('gratuityBarOpening')) document.getElementById('gratuityBarOpening').style.width = gratOpenPct + '%';
-    if(document.getElementById('gratuityBarAccrual')) document.getElementById('gratuityBarAccrual').style.width = gratAccrualPct + '%';
-
+    // Tenure line stays informative either way — it's what tells an
+    // ineligible employee how much longer until they qualify.
     let gratuityTenureEl = document.getElementById('gratuityTenure');
     if (gratuityTenureEl) {
         let tYears = Math.floor(tenureMonths / 12);
