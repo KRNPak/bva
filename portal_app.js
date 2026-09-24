@@ -226,6 +226,11 @@ function renderDashboard() {
     let trainWarningEl = document.getElementById('trainingWarning');
     if (trainWarningEl) trainWarningEl.style.display = (histExpense > totalAccrued) ? 'block' : 'none';
 
+    let trainUtilPct = totalAccrued > 0 ? Math.min(100, (histExpense / totalAccrued) * 100) : 0;
+    if(document.getElementById('trainUtilBar')) document.getElementById('trainUtilBar').style.width = trainUtilPct + '%';
+    if(document.getElementById('trainUtilPercent')) document.getElementById('trainUtilPercent').innerText = Math.round(trainUtilPct) + '% utilized';
+    if(document.getElementById('trainEntitlement')) document.getElementById('trainEntitlement').innerText = Math.round(annualBudget).toLocaleString('en-PK');
+
     // --- C. GRATUITY ---
     let gratOpening = getSafeNum(rawGrat['Gratuity Payable']);
     let gratPeriodAccrual = (baseSalary * 0.0417) * 12 * (daysPassedInFY / 365.25); 
@@ -238,6 +243,21 @@ function renderDashboard() {
             <span style="color: var(--text-secondary);">Opening:</span> <strong>${Math.round(gratOpening).toLocaleString('en-PK')}</strong><br>
             <span style="color: var(--text-secondary);">FY Accrued:</span> <strong>${Math.round(gratPeriodAccrual).toLocaleString('en-PK')}</strong>
         `;
+    }
+
+    let gratOpenPct = gratTotal > 0 ? (gratOpening / gratTotal) * 100 : 0;
+    let gratAccrualPct = gratTotal > 0 ? (gratPeriodAccrual / gratTotal) * 100 : 0;
+    if(document.getElementById('gratuityBarOpening')) document.getElementById('gratuityBarOpening').style.width = gratOpenPct + '%';
+    if(document.getElementById('gratuityBarAccrual')) document.getElementById('gratuityBarAccrual').style.width = gratAccrualPct + '%';
+
+    let gratuityTenureEl = document.getElementById('gratuityTenure');
+    if (gratuityTenureEl) {
+        let tYears = Math.floor(tenureMonths / 12);
+        let tMonthsRem = tenureMonths % 12;
+        let parts = [];
+        if (tYears > 0) parts.push(`${tYears} yr${tYears !== 1 ? 's' : ''}`);
+        parts.push(`${tMonthsRem} mo${tMonthsRem !== 1 ? 's' : ''}`);
+        gratuityTenureEl.innerText = parts.join(' ');
     }
 
     // --- D. SALARY ADVANCES ---

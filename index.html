@@ -271,6 +271,16 @@ input:checked + .theme-slider:before {
                         <!-- Breakdown injected by JS -->
                     </div>
                 </div>
+                <div style="height: 8px; background: rgba(0,0,0,0.08); border-radius: 4px; margin-top: 16px; display: flex; overflow: hidden;">
+                    <div id="gratuityBarOpening" style="width: 0%; background: var(--krn-blue);"></div>
+                    <div id="gratuityBarAccrual" style="width: 0%; background: var(--krn-light-blue);"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-secondary); margin-top: 6px;">
+                    <span>Opening</span><span>FY Accrual</span>
+                </div>
+                <div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 14px;">
+                    <strong id="gratuityTenure" style="color: var(--text-primary);">&mdash;</strong> of service &middot; accrues at Base Salary &times; 4.17% / month
+                </div>
             </button>
 
             <!-- 3. Training & Development -->
@@ -285,6 +295,13 @@ input:checked + .theme-slider:before {
                         <span style="color: var(--text-secondary);">Accrued:</span> <strong id="trainAccrued">0</strong><br>
                         <span style="color: var(--text-secondary);">Utilized:</span> <strong id="trainUtilized">0</strong>
                     </div>
+                </div>
+                <div style="height: 8px; background: rgba(0,0,0,0.08); border-radius: 4px; margin-top: 16px; overflow: hidden;">
+                    <div id="trainUtilBar" style="height: 100%; width: 0%; background: var(--krn-orange); border-radius: 4px;"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-secondary); margin-top: 6px;">
+                    <span id="trainUtilPercent">0% utilized</span>
+                    <span>Entitlement: <strong id="trainEntitlement" style="color: var(--text-primary);">0</strong></span>
                 </div>
                 <div id="trainingWarning" style="display: none; background: rgba(249, 115, 22, 0.1); color: var(--krn-orange); padding: 8px; border-radius: 4px; font-size: 0.7rem; margin-top: 15px; border: 1px solid var(--krn-orange); text-align: left;">
                     <strong>Advance Utilized:</strong> You have dipped into un-accrued funds. A Training Bond is currently active.
