@@ -114,6 +114,7 @@ module.exports = async (req, res) => {
         const gratData = readFile('Gratuity.csv');
         const taxData = readFile('Tax.csv');
         const cprData = readFile('CPR_Master.csv');
+        const expData = readFile('Expenses.csv');
 
         return res.status(200).json({
             emp: emp,
@@ -122,6 +123,7 @@ module.exports = async (req, res) => {
             myTraining: trainData.find(matchCode) || {},
             myGratuity: gratData.find(matchCode) || {},
             myTax: taxData.find(matchCode) || {},
+            myExpenses: expData.filter(matchCode) || [],
             cprMaster: cprData
         });
 
