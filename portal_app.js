@@ -277,11 +277,20 @@ function renderDashboard() {
                 existingAdvancesAmount += balance;
                 
                 let percent = advAmount > 0 ? (totalSettled / advAmount) * 100 : 0;
+
+                let advDateStr = rawA['Date of advance'] || '';
+                let advDateDisplay = advDateStr;
+                let dParts = String(advDateStr).split('/');
+                if (dParts.length === 3) {
+                    const monthsShort = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+                    let mIdx = parseInt(dParts[1], 10) - 1;
+                    if (mIdx >= 0 && mIdx < 12) advDateDisplay = `${dParts[0]}-${monthsShort[mIdx]}-${dParts[2]}`;
+                }
                 
                 advancesHTML += `
                     <div style="margin-bottom: 12px;">
-                        <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 4px;">
-                            <span style="color: var(--text-secondary);">Advance ${index + 1} Balance</span>
+                        <div style="display: flex; justify-content: space-between; align-items: baseline; font-size: 0.75rem; margin-bottom: 4px;">
+                            <span style="color: var(--text-secondary);">Advance ${index + 1} Balance${advDateDisplay ? ` <span style="opacity:0.7; font-size:0.68rem;">&middot; Started ${advDateDisplay}</span>` : ''}</span>
                             <strong style="color: var(--krn-orange);">${Math.round(balance).toLocaleString('en-PK')} PKR</strong>
                         </div>
                         <div style="width: 100%; background: rgba(0,0,0,0.1); border-radius: 4px; height: 6px; overflow: hidden;">
@@ -625,6 +634,7 @@ function openTrainingModal() {
                     </tr>
                 </tbody>
             </table>
+            <div style="font-size:0.72rem; color:var(--text-secondary); margin-top:12px;">Accrual formula: Annual Entitlement &divide; 365.25 &times; days elapsed in the current fiscal year, plus any historical opening balance, less amounts already utilized.</div>
             ${isOverdrawn ? `<div style="background: rgba(241, 98, 34, 0.1); color: var(--krn-orange); padding: 8px; border-radius: 4px; font-size: 0.75rem; margin-top: 12px; border: 1px solid var(--krn-orange);"><strong>Advance Utilized:</strong> You have dipped into un-accrued funds. A Training Bond is currently active.</div>` : ''}
             <div style="text-align:right; margin-top:20px;">
                 <button onclick="document.getElementById('trainModal').style.display='none'" style="background:var(--krn-blue); color:white; border:none; padding:8px 20px; border-radius:6px; cursor:pointer; font-weight:bold;">Close</button>
@@ -675,7 +685,7 @@ function generateTaxPDF() {
     if (cnic.length === 13) formattedCnic = `${cnic.substring(0, 5)}-${cnic.substring(5, 12)}-${cnic.substring(12, 13)}`;
     
     let cprMaster = db.cprMaster || [];
-    let grossSalary = getSafeNum(rawTax['Gross Salary'] || rawTax['Taxable Income'] || rawTax['Taxable Salary']) || 0;
+    let grossSalary = getSafeNum(rawTax['Annual Taxable Income'] || rawTax['Gross Salary'] || rawTax['Taxable Income'] || rawTax['Taxable Salary']) || 0;
     
     let totalTax = 0;
     const months = ['Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
@@ -724,6 +734,7 @@ function generateTaxPDF() {
                 has been deposited in different branches of National Bank of Pakistan and State Bank of Pakistan.<br>
                 Reference CPR's are as follows:
             </p>
+            <p style="margin: 0 0 15px 0;"><strong>Total Taxable Salary (Annual):</strong> PKR ${Math.round(grossSalary).toLocaleString('en-PK')}</p>
             
             <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 11px; text-align: left;">
                 <thead>
@@ -833,3 +844,33 @@ function toggleTheme() {
         }
     }, 100);
 })();
+
+// ========================================================================
+// 7. LOGOUT
+// ========================================================================
+function logoutUser() {
+    // Clear session state so a stale record can't linger in memory.
+    db = {};
+    emp = null;
+
+    // Close any open modals.
+    ['pfModal', 'gratModal', 'trainModal', 'advModal'].forEach(id => {
+        let modal = document.getElementById(id);
+        if (modal) modal.style.display = 'none';
+    });
+
+    // Reset the login form for the next person.
+    let cnicEl = document.getElementById('cnicInput');
+    let codeEl = document.getElementById('empCodeInput');
+    if (cnicEl) cnicEl.value = '';
+    if (codeEl) codeEl.value = '';
+    let errorMsg = document.getElementById('loginError');
+    if (errorMsg) errorMsg.style.display = 'none';
+    let btn = document.querySelector('.login-btn');
+    if (btn) { btn.innerText = 'Secure Login \u2192'; btn.disabled = false; }
+
+    let loginScreen = document.getElementById('loginScreen');
+    let dashboardScreen = document.getElementById('dashboardScreen');
+    if (dashboardScreen) dashboardScreen.style.display = 'none';
+    if (loginScreen) loginScreen.style.display = 'flex';
+}
