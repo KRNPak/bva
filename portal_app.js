@@ -260,10 +260,15 @@ function renderDashboard() {
     if(document.getElementById('trainEntitlement')) document.getElementById('trainEntitlement').innerText = Math.round(annualBudget).toLocaleString('en-PK');
 
     // --- C. GRATUITY ---
-    let gratOpening = getSafeNum(rawGrat['Gratuity Payable']);
-    let gratPeriodAccrual = (baseSalary * 0.0417) * 12 * (daysPassedInFY / 365.25); 
-    let gratTotal = gratOpening + gratPeriodAccrual;
-    let gratuityEligible = tenureMonths >= 36; // 3 years' service required
+    // Per-year rate is Base Salary / 2, applied to years served counted from
+    // 1-Jul-2023 (or the employee's actual joining date if later). This
+    // replaces the old "opening balance + this year's accrual" approach —
+    // Gratuity.csv's opening balance is no longer used at all.
+    let gratAnchorDate = new Date(2023, 6, 1); // 1 July 2023
+    let gratStartDate = joinDateObj > gratAnchorDate ? joinDateObj : gratAnchorDate;
+    let gratYearsServed = Math.max(0, (today - gratStartDate) / (1000 * 60 * 60 * 24 * 365.25));
+    let gratTotal = (baseSalary / 2) * gratYearsServed; // unconditional — Lease's formula uses this regardless of eligibility
+    let gratuityEligible = tenureMonths >= 36; // still requires 3 real years' service, from the actual joining date
 
     let gratuityCard = document.getElementById('gratuityCard');
     let gratBreakdownEl = document.getElementById('gratuityBreakdown');
@@ -271,8 +276,6 @@ function renderDashboard() {
     if (!gratuityEligible) {
         if(document.getElementById('gratuityTotal')) document.getElementById('gratuityTotal').innerText = "0";
         if(gratBreakdownEl) gratBreakdownEl.innerHTML = '';
-        if(document.getElementById('gratuityBarOpening')) document.getElementById('gratuityBarOpening').style.width = '0%';
-        if(document.getElementById('gratuityBarAccrual')) document.getElementById('gratuityBarAccrual').style.width = '0%';
 
         if (gratuityCard) {
             gratuityCard.classList.add('locked-card');
@@ -294,15 +297,10 @@ function renderDashboard() {
         if(document.getElementById('gratuityTotal')) animateValue('gratuityTotal', gratTotal);
         if(gratBreakdownEl) {
             gratBreakdownEl.innerHTML = `
-                <span style="color: var(--text-secondary);">Opening:</span> <strong>${Math.round(gratOpening).toLocaleString('en-PK')}</strong><br>
-                <span style="color: var(--text-secondary);">FY Accrued:</span> <strong>${Math.round(gratPeriodAccrual).toLocaleString('en-PK')}</strong>
+                <span style="color: var(--text-secondary);">Years Served:</span> <strong>${gratYearsServed.toFixed(2)}</strong><br>
+                <span style="color: var(--text-secondary);">Rate (Base Salary &divide; 2):</span> <strong>${Math.round(baseSalary / 2).toLocaleString('en-PK')}</strong>
             `;
         }
-
-        let gratOpenPct = gratTotal > 0 ? (gratOpening / gratTotal) * 100 : 0;
-        let gratAccrualPct = gratTotal > 0 ? (gratPeriodAccrual / gratTotal) * 100 : 0;
-        if(document.getElementById('gratuityBarOpening')) document.getElementById('gratuityBarOpening').style.width = gratOpenPct + '%';
-        if(document.getElementById('gratuityBarAccrual')) document.getElementById('gratuityBarAccrual').style.width = gratAccrualPct + '%';
     }
 
     // Tenure line stays informative either way — it's what tells an
@@ -348,14 +346,17 @@ function renderDashboard() {
                 let dParts = String(advDateStr).split('/');
                 if (dParts.length === 3) {
                     const monthsShort = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-                    let mIdx = parseInt(dParts[1], 10) - 1;
-                    if (mIdx >= 0 && mIdx < 12) advDateDisplay = `${dParts[0]}-${monthsShort[mIdx]}-${dParts[2]}`;
+                    let gracePeriodMonths = getSafeNum(rawA['Grace period']);
+                    let startDateObj = new Date(dParts[2], parseInt(dParts[1], 10) - 1, parseInt(dParts[0], 10));
+                    startDateObj.setMonth(startDateObj.getMonth() + gracePeriodMonths);
+                    let dd = String(startDateObj.getDate()).padStart(2, '0');
+                    advDateDisplay = `${dd}-${monthsShort[startDateObj.getMonth()]}-${startDateObj.getFullYear()}`;
                 }
                 
                 advancesHTML += `
                     <div style="margin-bottom: 12px;">
                         <div style="display: flex; justify-content: space-between; align-items: baseline; font-size: 0.75rem; margin-bottom: 4px;">
-                            <span style="color: var(--text-secondary);">Advance ${index + 1} Balance${advDateDisplay ? ` <span style="opacity:0.7; font-size:0.68rem;">&middot; Started ${advDateDisplay}</span>` : ''}</span>
+                            <span style="color: var(--text-secondary);">Advance ${index + 1} Balance${advDateDisplay ? ` <span style="opacity:0.7; font-size:0.68rem;">&middot; Deductions from ${advDateDisplay}</span>` : ''}</span>
                             <strong style="color: var(--krn-orange);">${Math.round(balance).toLocaleString('en-PK')} PKR</strong>
                         </div>
                         <div style="width: 100%; background: rgba(0,0,0,0.1); border-radius: 4px; height: 6px; overflow: hidden;">
@@ -371,13 +372,22 @@ function renderDashboard() {
         }
     }
 
-    let advMax = 0; 
-    if (existingAdvancesCount < 3) {
+    let advMax = 0;
+    let advCapReason = '';
+    if (existingAdvancesCount >= 3) {
+        advCapReason = '3 active advances already on record';
+    } else {
         let condition1 = baseSalary > 0 ? (baseSalary * 5) : (pfTotal * 0.6); 
         let condition2 = (pfTotal * 0.6) - existingAdvancesAmount;
         advMax = Math.max(0, Math.min(condition1, condition2));
+        if (condition1 <= condition2) {
+            advCapReason = baseSalary > 0 ? '5\u00d7 Base Salary' : '60% of Provident Fund';
+        } else {
+            advCapReason = '60% of Provident Fund (net of active advances)';
+        }
     }
     if(document.getElementById('advLimit')) animateValue('advLimit', advMax);
+    if(document.getElementById('advCapReason')) document.getElementById('advCapReason').innerText = advCapReason;
 
     // --- E2. EXPENSE CLAIMS ---
     let validExpenses = [];
@@ -674,14 +684,17 @@ function openGratuityModal() {
     if (Object.keys(rawGrat).length === 0) return;
 
     let today = new Date();
-    let currentFYYear = today.getMonth() < 6 ? today.getFullYear() - 1 : today.getFullYear();
-    let fyStart = new Date(currentFYYear, 6, 1);
-    let daysPassedInFY = Math.max(0, (today - fyStart) / (1000 * 60 * 60 * 24));
-
     let baseSalary = getSafeNum(rawEmp['Base Salary']);
-    let gratOpening = getSafeNum(rawGrat['Gratuity Payable']);
-    let gratPeriodAccrual = (baseSalary * 0.0417) * 12 * (daysPassedInFY / 365.25);
-    let gratTotal = gratOpening + gratPeriodAccrual;
+
+    let joinDateObj = new Date();
+    let joinDateStr = rawEmp['Joining Date'] || "";
+    let joinParts = String(joinDateStr).split('/');
+    if (joinParts.length === 3) joinDateObj = new Date(joinParts[2], joinParts[1] - 1, joinParts[0]);
+
+    let gratAnchorDate = new Date(2023, 6, 1); // 1 July 2023
+    let gratStartDate = joinDateObj > gratAnchorDate ? joinDateObj : gratAnchorDate;
+    let gratYearsServed = Math.max(0, (today - gratStartDate) / (1000 * 60 * 60 * 24 * 365.25));
+    let gratTotal = (baseSalary / 2) * gratYearsServed;
 
     modal.innerHTML = `
         <div style="background:var(--bg-card); padding:25px; border-radius:12px; width:90%; max-width:500px; color:var(--text-primary); box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
@@ -691,12 +704,16 @@ function openGratuityModal() {
             <table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
                 <tbody>
                     <tr style="border-bottom: 1px dashed var(--border-color);">
-                        <td style="padding:8px 0; color:var(--text-secondary);">Opening Balance (as of last FY close)</td>
-                        <td style="padding:8px 0; text-align:right;"><strong>${Math.round(gratOpening).toLocaleString('en-PK')}</strong></td>
+                        <td style="padding:8px 0; color:var(--text-secondary);">Calculation start date</td>
+                        <td style="padding:8px 0; text-align:right;"><strong>${String(gratStartDate.getDate()).padStart(2,'0')}-${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][gratStartDate.getMonth()]}-${gratStartDate.getFullYear()}</strong></td>
+                    </tr>
+                    <tr style="border-bottom: 1px dashed var(--border-color);">
+                        <td style="padding:8px 0; color:var(--text-secondary);">Years Served (for gratuity)</td>
+                        <td style="padding:8px 0; text-align:right;"><strong>${gratYearsServed.toFixed(2)}</strong></td>
                     </tr>
                     <tr style="border-bottom: 1px solid var(--border-color);">
-                        <td style="padding:8px 0; color:var(--text-secondary);">Current FY Accrual (to date)</td>
-                        <td style="padding:8px 0; text-align:right;"><strong>${Math.round(gratPeriodAccrual).toLocaleString('en-PK')}</strong></td>
+                        <td style="padding:8px 0; color:var(--text-secondary);">Rate (Base Salary &divide; 2)</td>
+                        <td style="padding:8px 0; text-align:right;"><strong>${Math.round(baseSalary / 2).toLocaleString('en-PK')}</strong></td>
                     </tr>
                     <tr style="background:rgba(0,0,0,0.02);">
                         <td style="padding:15px 5px; font-weight:bold; color:var(--krn-blue);">Accrued Amount</td>
@@ -704,7 +721,7 @@ function openGratuityModal() {
                     </tr>
                 </tbody>
             </table>
-            <div style="font-size:0.72rem; color:var(--text-secondary); margin-top:12px;">Accrual formula: Base Salary &times; 4.17% per month, prorated for days elapsed in the current fiscal year.</div>
+            <div style="font-size:0.72rem; color:var(--text-secondary); margin-top:12px;">Accrual formula: Base Salary &divide; 2, multiplied by years served counted from 1-Jul-2023 (or your joining date, if later). Requires at least 3 years' actual service to be eligible.</div>
             <div style="text-align:right; margin-top:20px;">
                 <button onclick="document.getElementById('gratModal').style.display='none'" style="background:var(--krn-blue); color:white; border:none; padding:8px 20px; border-radius:6px; cursor:pointer; font-weight:bold;">Close</button>
             </div>
