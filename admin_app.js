@@ -57,8 +57,8 @@ function renderTotalsGrid(totals) {
         },
         {
             title: 'Gratuity', key: 'gratuity',
-            rows: [['Opening', totals.gratuity.opening], ['Accrued this year', totals.gratuity.accrued]],
-            note: 'Employees under 3 years\u2019 service contribute PKR 0.',
+            rows: [],
+            note: 'Base Salary \u00f7 2 \u00d7 years served from 1-Jul-2023 (or joining date if later). Employees under 3 years\u2019 service contribute PKR 0.',
         },
         {
             title: 'Training Budget', key: 'training',

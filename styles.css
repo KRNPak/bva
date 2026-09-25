@@ -4,29 +4,43 @@
     --bg-card-dark: #1c2024;     
     --bg-header-dark: #1c2024;   
     --text-primary-dark: #eef2f6; 
-    --text-secondary-dark: #8b949e; 
-    --border-color-dark: #2d333a; 
-    --card-shadow-dark: 0 8px 20px rgba(0,0,0,0.25);
+    --text-secondary-dark: #9aa4ae; 
+    --border-color-dark: #2f363e; 
+    --card-shadow-dark: 0 6px 18px rgba(0,0,0,0.28);
     
     --krn-blue-dark: #006890;    
     --krn-light-blue-dark: #4a96d2; 
     --krn-teal: #4a96d2; 
     --krn-orange: #f16222;
     --krn-green: #239c49;
+
+    --ok-dark: #34c38f;
+    --behind-dark: #f2b632;
+    --over-dark: #ff7a45;
+    --neutral-dark: #6b7580;
     
     --badge-primary: rgba(0, 104, 144, 0.2); 
     --badge-orange: rgba(249, 115, 22, 0.15);
 
     /* LIGHT THEME */
-    --bg-page-light: #e2e8f0;    /* Deeper, soft-gray page background */
-    --bg-card-light: #f8fafc;    /* Muted off-white for cards instead of pure white */
-    --bg-header-light: #f8fafc;  /* Matches the soft cards */
-    --text-primary-light: #1e293b; /* Slightly softer dark text to reduce contrast glare */
-    --text-secondary-light: #475569; 
-    --border-color-light: #cbd5e1; 
+    --bg-page-light: #e4e9ef;    /* Matches the Budget vs Actual dashboard's page background */
+    --bg-card-light: #f9fbfc;    /* Matches its card background */
+    --bg-header-light: #f9fbfc;  
+    --text-primary-light: #1e293b; 
+    --text-secondary-light: #4b5a6c; 
+    --border-color-light: #cfd8e3; 
     --krn-blue-light: #006890; 
     --krn-light-blue-light: #4a96d2;
-    --card-shadow-light: 0 4px 12px rgba(0,0,0,0.05);
+    --card-shadow-light: 0 3px 10px rgba(15,30,50,0.06);
+
+    --ok-light: #0f7b55;
+    --behind-light: #b07c00;
+    --over-light: #d9480f;
+    --neutral-light: #8a96a3;
+
+    --font-num: 'Oswald', 'Arial Narrow', 'Segoe UI', sans-serif;
+    --radius-card: 10px;
+    --radius-ctrl: 6px;
 }
 
 body {
@@ -39,6 +53,10 @@ body {
     --krn-blue: var(--krn-blue-dark);
     --krn-light-blue: var(--krn-light-blue-dark);
     --card-shadow: var(--card-shadow-dark);
+    --ok: var(--ok-dark);
+    --behind: var(--behind-dark);
+    --over: var(--over-dark);
+    --neutral: var(--neutral-dark);
 
     font-family: Calibri, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     font-weight: 300;
@@ -71,6 +89,10 @@ body.light-mode {
     --krn-blue: var(--krn-blue-light);
     --krn-light-blue: var(--krn-light-blue-light);
     --card-shadow: var(--card-shadow-light);
+    --ok: var(--ok-light);
+    --behind: var(--behind-light);
+    --over: var(--over-light);
+    --neutral: var(--neutral-light);
 }
 
 * { box-sizing: border-box; }

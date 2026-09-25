@@ -997,6 +997,24 @@ function toggleTheme() {
     }, 100);
 })();
 
+// Mobile tab groups — only visually relevant under the 900px breakpoint
+// (see .mobile-tabs / [data-tab-group] rules in index.html), but harmless
+// to wire up unconditionally since it's plain class-toggling.
+(function initMobileTabs() {
+    const tabBtns = document.querySelectorAll('.mobile-tab-btn');
+    const groupedCards = document.querySelectorAll('[data-tab-group]');
+    if (!tabBtns.length) return;
+
+    function setActiveTab(tab) {
+        tabBtns.forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+        groupedCards.forEach(c => c.classList.toggle('tab-visible', c.dataset.tabGroup === tab));
+    }
+
+    tabBtns.forEach(b => b.addEventListener('click', () => setActiveTab(b.dataset.tab)));
+    setActiveTab('benefits');
+})();
+
+
 // ========================================================================
 // 7. LOGOUT
 // ========================================================================
