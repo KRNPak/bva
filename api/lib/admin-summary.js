@@ -75,7 +75,6 @@ module.exports = async (req, res) => {
 
         const staff = readFile('Staff_Master.csv');
         const pfData = readFile('PF.csv');
-        const gratData = readFile('Gratuity.csv');
         const trainData = readFile('Training.csv');
         const advData = readFile('Advances.csv');
 
@@ -124,15 +123,17 @@ module.exports = async (req, res) => {
             const pfAccrued = pfTotal - pfOpening;
 
             // --- GRATUITY ---
-            const gratRow = findByEmpCode(gratData, empCode);
-            const gratRaw = gratRow._raw || gratRow;
-            const gratOpeningRaw = getSafeNum(gratRaw['Gratuity Payable']);
-            const gratPeriodAccrual = (baseSalary * 0.0417) * 12 * (daysPassedInFY / 365.25);
-            const gratTotalRaw = gratOpeningRaw + gratPeriodAccrual; // unconditional — Lease's formula uses this regardless of vesting, matching the existing per-employee logic
+            // Base Salary / 2, applied to years served from 1-Jul-2023 (or
+            // the employee's joining date if later). Gratuity.csv's opening
+            // balance is no longer used at all.
+            const gratAnchorDate = new Date(2023, 6, 1);
+            const gratStartDate = (joinDateObj && joinDateObj > gratAnchorDate) ? joinDateObj : gratAnchorDate;
+            const gratYearsServed = Math.max(0, (today - gratStartDate) / (1000 * 60 * 60 * 24 * 365.25));
+            const gratTotalRaw = (baseSalary / 2) * gratYearsServed; // unconditional — Lease's formula uses this regardless of vesting, matching the existing per-employee logic
             const gratuityEligible = tenureMonths >= 36;
-            const gratOpening = gratuityEligible ? gratOpeningRaw : 0;
-            const gratAccrued = gratuityEligible ? gratPeriodAccrual : 0;
-            const gratTotal = gratOpening + gratAccrued;
+            const gratTotal = gratuityEligible ? gratTotalRaw : 0;
+            const gratOpening = 0; // no longer applicable under the new formula
+            const gratAccrued = gratTotal;
 
             // --- TRAINING ---
             const trainRow = findByEmpCode(trainData, empCode);
