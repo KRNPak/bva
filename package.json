@@ -1,0 +1,9 @@
+{
+  "name": "karandaaz-hr-portal",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "google-auth-library": "^11.1.0",
+    "cookie": "^0.7.0"
+  }
+}
