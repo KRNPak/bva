@@ -156,7 +156,8 @@ input:checked + .theme-slider:before {
 
   /* ---------------- Main content + clickable cards ---------------- */
   .dashboard-main { flex: 1 1 auto; padding: 36px 40px; box-sizing: border-box; min-width: 0; }
-  .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 1160px; align-items: start; }
+  .main-grid { display: flex; gap: 24px; max-width: 1160px; align-items: flex-start; }
+  .grid-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 24px; }
   .click-card {
       all: unset; box-sizing: border-box; width: 100%; align-self: start;
       display: flex; flex-direction: column; text-align: left; cursor: pointer; font-family: inherit;
@@ -176,7 +177,7 @@ input:checked + .theme-slider:before {
   @media (max-width: 900px) {
       .dashboard-shell { flex-direction: column; }
       .sidebar { position: static; min-height: unset; flex: 0 0 auto; width: 100%; }
-      .main-grid { grid-template-columns: 1fr; max-width: none; }
+      .main-grid { flex-direction: column; max-width: none; }
   }
 </style>
 </head>
@@ -243,6 +244,7 @@ input:checked + .theme-slider:before {
         <!-- MAIN CONTENT -->
         <main class="dashboard-main">
           <div class="main-grid">
+            <div class="grid-col">
 
             <!-- 1. Provident Fund -->
             <button type="button" class="click-card" id="pfCard" onclick="openPFModal()" title="Click for Monthly Ledger">
@@ -256,30 +258,6 @@ input:checked + .theme-slider:before {
                     <div id="pfEmployerBox"><span style="color: var(--text-secondary);">Employer Cont.</span><br><strong id="pfEmployer" style="color: var(--text-primary);">0</strong></div>
                     <div><span style="color: var(--text-secondary);">Acc. Profits</span><br><strong id="pfProfit" style="color: var(--krn-green);">0</strong></div>
                     <div><span style="color: var(--text-secondary);">Total Withdrawals</span><br><strong id="pfWithdrawal" style="color: var(--krn-orange);">0</strong></div>
-                </div>
-            </button>
-
-            <!-- 2. Gratuity -->
-            <button type="button" class="click-card" id="gratuityCard" onclick="openGratuityModal()" title="Click for accrual detail">
-                <div class="card-header-row">
-                    <h3>Gratuity Payable</h3>
-                    <svg class="card-chevron" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: flex-end;">
-                    <div class="val"><span class="val-unit">Accrued Amount (PKR)</span><span class="val-num" id="gratuityTotal">0</span></div>
-                    <div id="gratuityBreakdown" style="text-align: right; font-size: 0.75rem;">
-                        <!-- Breakdown injected by JS -->
-                    </div>
-                </div>
-                <div style="height: 8px; background: rgba(0,0,0,0.08); border-radius: 4px; margin-top: 16px; display: flex; overflow: hidden;">
-                    <div id="gratuityBarOpening" style="width: 0%; background: var(--krn-blue);"></div>
-                    <div id="gratuityBarAccrual" style="width: 0%; background: var(--krn-light-blue);"></div>
-                </div>
-                <div style="display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-secondary); margin-top: 6px;">
-                    <span>Opening</span><span>FY Accrual</span>
-                </div>
-                <div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 14px;">
-                    <strong id="gratuityTenure" style="color: var(--text-primary);">&mdash;</strong> of service &middot; accrues at Base Salary &times; 4.17% / month
                 </div>
             </button>
 
@@ -308,6 +286,44 @@ input:checked + .theme-slider:before {
                 </div>
             </button>
 
+            <!-- 6. Tax Certificate -->
+            <div class="bento-card">
+                <h3 style="margin: 0 0 15px 0; color: var(--text-primary); font-size: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Tax Certificates</h3>
+                <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0;">Generate your official Section 149 Tax Deduction Certificate.</p>
+                <select id="taxYearSelect" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-page); color: var(--text-primary); margin-bottom: 15px;">
+                    <option value="FY2027">July 2026 - June 2027</option>
+                    <option value="FY2026">July 2025 - June 2026</option>
+                </select>
+                <button onclick="generateTaxPDF()" style="background: transparent; color: var(--krn-blue); border: 1px solid var(--krn-blue); padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%;">Generate PDF &darr;</button>
+            </div>
+
+            </div>
+            <div class="grid-col">
+
+            <!-- 2. Gratuity -->
+            <button type="button" class="click-card" id="gratuityCard" onclick="openGratuityModal()" title="Click for accrual detail">
+                <div class="card-header-row">
+                    <h3>Gratuity Payable</h3>
+                    <svg class="card-chevron" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                    <div class="val"><span class="val-unit">Accrued Amount (PKR)</span><span class="val-num" id="gratuityTotal">0</span></div>
+                    <div id="gratuityBreakdown" style="text-align: right; font-size: 0.75rem;">
+                        <!-- Breakdown injected by JS -->
+                    </div>
+                </div>
+                <div style="height: 8px; background: rgba(0,0,0,0.08); border-radius: 4px; margin-top: 16px; display: flex; overflow: hidden;">
+                    <div id="gratuityBarOpening" style="width: 0%; background: var(--krn-blue);"></div>
+                    <div id="gratuityBarAccrual" style="width: 0%; background: var(--krn-light-blue);"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-secondary); margin-top: 6px;">
+                    <span>Opening</span><span>FY Accrual</span>
+                </div>
+                <div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 14px;">
+                    <strong id="gratuityTenure" style="color: var(--text-primary);">&mdash;</strong> of service &middot; accrues at Base Salary &times; 4.17% / month
+                </div>
+            </button>
+
             <!-- 4. Salary Advances -->
             <button type="button" class="click-card" id="advancesCard" title="Click for advances ledger">
                 <div class="card-header-row">
@@ -318,17 +334,28 @@ input:checked + .theme-slider:before {
                     Max Available Limit (PKR)
                     <span style="margin-left:5px; cursor:help; font-size:0.9rem;" title="Calculation: Min(Base Salary × 5, PF Balance × 60%) minus active advances. Maximum 3 active advances allowed.">&#8505;&#65039;</span>
                 </div>
-                <div class="val-num" id="advLimit" style="margin-bottom: 15px;">0</div>
+                <div class="val-num" id="advLimit" style="margin-bottom: 4px;">0</div>
+                <div style="font-size: 0.68rem; color: var(--text-secondary); margin-bottom: 15px;">Capped by: <strong id="advCapReason" style="color: var(--text-primary);">&mdash;</strong></div>
                 <div id="activeAdvancesContainer">
                     <!-- Progress bars injected by JS -->
                 </div>
             </button>
 
+            <!-- 7. Lease Finance Limit -->
+            <div class="bento-card" id="leaseCard">
+                <h3 style="margin: 0 0 15px 0; color: var(--text-primary); font-size: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Lease Finance Limit</h3>
+                <div class="val"><span class="val-unit">Max Vehicle Lease (PKR)</span><span class="val-num" id="leaseLimit">0</span></div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 10px;">Calculation: (PF + Gratuity) - (Advances + Overage Training)</div>
+            </div>
+
+            </div>
+
             <!-- 5. Expense Claims — temporarily hidden from the UI (per request).
                  The data (Expenses.csv), API field (myExpenses), rendering logic
                  in portal_app.js, and the openExpensesModal() modal are all still
                  fully intact — nothing else needs to change to bring this back.
-                 To re-enable: uncomment the <button> block below.
+                 To re-enable: uncomment the <button> block below and place it
+                 inside whichever <div class="grid-col"> you want it to stack in.
             <button type="button" class="click-card" id="expensesCard" onclick="openExpensesModal()" title="Click for claim history">
                 <div class="card-header-row">
                     <h3>Expense Claims</h3>
@@ -341,24 +368,6 @@ input:checked + .theme-slider:before {
                 </div>
             </button>
             -->
-
-            <!-- 6. Tax Certificate -->
-            <div class="bento-card">
-                <h3 style="margin: 0 0 15px 0; color: var(--text-primary); font-size: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Tax Certificates</h3>
-                <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0;">Generate your official Section 149 Tax Deduction Certificate.</p>
-                <select id="taxYearSelect" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-page); color: var(--text-primary); margin-bottom: 15px;">
-                    <option value="FY2027">July 2026 - June 2027</option>
-                    <option value="FY2026">July 2025 - June 2026</option>
-                </select>
-                <button onclick="generateTaxPDF()" style="background: transparent; color: var(--krn-blue); border: 1px solid var(--krn-blue); padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%;">Generate PDF &darr;</button>
-            </div>
-
-            <!-- 7. Lease Finance Limit -->
-            <div class="bento-card" id="leaseCard">
-                <h3 style="margin: 0 0 15px 0; color: var(--text-primary); font-size: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Lease Finance Limit</h3>
-                <div class="val"><span class="val-unit">Max Vehicle Lease (PKR)</span><span class="val-num" id="leaseLimit">0</span></div>
-                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 10px;">Calculation: (PF + Gratuity) - (Advances + Overage Training)</div>
-            </div>
 
           </div>
         </main>
