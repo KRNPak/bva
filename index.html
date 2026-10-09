@@ -33,11 +33,6 @@
         }
         
         /* Bento Grid */
-        .bento-card {
-            background: var(--bg-card); border: 1px solid var(--border-color);
-            border-radius: var(--radius-card); padding: 20px; box-shadow: var(--card-shadow);
-            display: flex; flex-direction: column; position: relative;
-        }
         .locked-card { opacity: 0.6 !important; filter: grayscale(100%) !important; pointer-events: none !important; position: relative !important; }
         .locked-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -156,28 +151,78 @@ input:checked + .theme-slider:before {
      for the sidebar specifically when dark mode is active. */
   body.dark-mode .sidebar { background: #00394f; }
 
-  /* ---------------- Main content + clickable cards ---------------- */
+  /* ---------------- Main content: statement rows ---------------- */
   .dashboard-main { flex: 1 1 auto; padding: 36px 40px; box-sizing: border-box; min-width: 0; }
-  .main-grid { display: flex; gap: 24px; max-width: 1160px; align-items: flex-start; }
-  .grid-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 24px; }
-  .click-card {
-      all: unset; box-sizing: border-box; width: 100%;
-      display: flex; flex-direction: column; text-align: left; cursor: pointer; font-family: inherit;
-      background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-card);
-      padding: 22px; box-shadow: var(--card-shadow);
-      transition: box-shadow .15s ease;
-  }
-  .click-card:hover { box-shadow: 0 8px 20px rgba(0,0,0,0.12); }
-  .click-card:focus-visible { outline: 2px solid var(--krn-blue); outline-offset: 2px; box-shadow: 0 8px 20px rgba(0,0,0,0.12); }
-  .card-header-row {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color);
-  }
-  .card-header-row h3 { margin: 0; font-size: var(--fs-title); color: var(--text-primary); }
-  .card-chevron { flex-shrink: 0; color: var(--text-secondary); }
+  .stmt-list { display: flex; flex-direction: column; gap: 14px; max-width: 1180px; }
 
-  /* Mobile tab bar — base styles MUST come before the media query below,
-     otherwise this display:none would override the media query's display:flex. */
+  /* One row per item:  [name + headline figure] | [supporting detail] | [chevron].
+     Works on button elements (clickable rows) and div elements (static rows) alike. */
+  .stmt-row {
+      all: unset; box-sizing: border-box; position: relative; width: 100%;
+      display: grid; grid-template-columns: 270px minmax(0, 1fr) 20px; column-gap: 28px; align-items: center;
+      padding: 18px 22px; font-family: inherit; text-align: left; color: var(--text-primary);
+      background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-card);
+      box-shadow: var(--card-shadow); transition: box-shadow .15s ease, border-color .15s ease;
+  }
+  .stmt-click { cursor: pointer; }
+  .stmt-click:hover { border-color: var(--accent); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
+  .stmt-click:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .stmt-head { min-width: 0; }
+  .stmt-row .val-num { color: var(--accent); }
+  .stmt-title { margin: 0 0 8px; font-size: var(--fs-title); font-weight: 600; color: var(--text-primary); }
+  .stmt-subnote { margin-top: 6px; font-size: var(--fs-label); color: var(--text-secondary); }
+  .stmt-subnote strong { color: var(--text-primary); }
+  .stmt-body { min-width: 0; display: flex; flex-direction: column; gap: 12px; border-left: 1px solid var(--border-color); padding-left: 28px; }
+  .stmt-chevron { justify-self: end; color: var(--text-secondary); }
+
+  /* Fixed 4-column stat grid: stat #1 of every row starts at the same x,
+     so figures line up down the page like a statement. */
+  .stmt-stats, .stmt-advances { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 20px; }
+  .stat-lbl { display: block; font-size: var(--fs-note); color: var(--text-secondary); margin-bottom: 2px; }
+  .stat-val { display: block; font-family: var(--font-num); font-size: 1.15rem; font-weight: 600; color: var(--text-primary); }
+  .stmt-note { font-size: var(--fs-note); color: var(--text-secondary); line-height: 1.45; }
+
+  .stmt-bar-wrap { display: flex; align-items: center; gap: 12px; }
+  .stmt-bar { flex: 1; height: 8px; border-radius: 4px; background: var(--track); overflow: hidden; }
+  .stmt-bar-fill { height: 100%; border-radius: 4px; }
+  .stmt-bar-label { font-size: var(--fs-note); color: var(--text-secondary); white-space: nowrap; }
+
+  .stmt-warning {
+      padding: 10px 12px; border-radius: 6px; font-size: var(--fs-note); line-height: 1.45;
+      color: var(--over); background: rgba(217, 72, 15, 0.08); border: 1px solid var(--over);
+  }
+
+  .adv-item .stat-val { color: var(--over); }
+  .adv-item .stat-val small { font-family: inherit; font-size: var(--fs-note); font-weight: 400; color: var(--text-secondary); margin-left: 4px; }
+  .adv-item .stmt-bar { height: 6px; margin: 7px 0 5px; }
+
+  .info-tip { margin-left: 6px; cursor: help; font-size: 0.9rem; }
+
+  /* Locked (ineligible) rows: row is greyed by .locked-card; hide the detail and
+     put the "Not Eligible" label where that detail would be. No blur, so the
+     row title stays readable. */
+  .stmt-row.locked-card .stmt-body { visibility: hidden; }
+  .stmt-row .locked-overlay {
+      flex-direction: row; justify-content: flex-start; align-items: center;
+      padding-left: 349px; background: transparent; backdrop-filter: none;
+  }
+
+  .stmt-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+  .stmt-select {
+      flex: 1 1 220px; max-width: 340px; padding: 9px 12px; border-radius: var(--radius-ctrl);
+      border: 1px solid var(--border-color); background: var(--bg-page); color: var(--text-primary);
+      font-size: var(--fs-label); font-family: inherit;
+  }
+  .stmt-btn {
+      padding: 9px 18px; border-radius: var(--radius-ctrl); border: 1px solid var(--accent);
+      background: transparent; color: var(--accent); font-weight: 700; font-size: var(--fs-label);
+      font-family: inherit; cursor: pointer; white-space: nowrap; transition: background-color .15s;
+  }
+  .stmt-btn:hover { background: var(--accent-soft); }
+
+  /* Mobile tab bar — base styles MUST come before the media queries below,
+     otherwise this display:none would override their display:flex. */
   .mobile-tabs {
       display: none; gap: 6px; margin-bottom: 16px; padding: 4px;
       background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-ctrl);
@@ -189,19 +234,26 @@ input:checked + .theme-slider:before {
   }
   .mobile-tab-btn.active { background: var(--krn-blue); color: #fff; }
 
+  /* Narrower desktops: the detail zone drops beneath the name + headline figure. */
+  @media (max-width: 1280px) {
+      .stmt-row { grid-template-columns: minmax(0, 1fr) 20px; row-gap: 14px; }
+      .stmt-body { grid-column: 1 / -1; grid-row: 2; border-left: none; padding-left: 0; border-top: 1px solid var(--border-color); padding-top: 14px; }
+      .stmt-chevron { grid-column: 2; grid-row: 1; align-self: start; }
+      .stmt-row .locked-overlay { align-items: flex-end; padding: 0 0 16px 22px; }
+  }
+
   @media (max-width: 900px) {
       .dashboard-shell { flex-direction: column; align-items: stretch; }
       .sidebar { position: static; min-height: unset; flex: 0 0 auto; width: 100%; }
       .dashboard-main { padding: 16px 0 24px; }
-      .main-grid { flex-direction: column; max-width: none; align-items: stretch; }
-
-      /* Collapse the two desktop columns so cards become one flat,
-         filterable sequence for the tab groups. */
-      .grid-col { display: contents; }
+      .stmt-list { max-width: none; }
+      .stmt-row { padding: 16px; }
+      .stmt-row .locked-overlay { padding: 0 0 14px 16px; }
+      .stmt-stats, .stmt-advances { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
       .mobile-tabs { display: flex; }
       [data-tab-group] { display: none; }
-      [data-tab-group].tab-visible { display: flex; }
+      [data-tab-group].tab-visible { display: grid; }
   }
 </style>
 </head>
@@ -272,123 +324,129 @@ input:checked + .theme-slider:before {
               <button type="button" class="mobile-tab-btn" data-tab="money" role="tab">Money</button>
               <button type="button" class="mobile-tab-btn" data-tab="documents" role="tab">Documents</button>
           </div>
-          <div class="main-grid">
-            <div class="grid-col">
+          <div class="stmt-list">
 
             <!-- 1. Provident Fund -->
-            <button type="button" class="click-card" id="pfCard" data-tab-group="benefits" onclick="openPFModal()" title="Click for Monthly Ledger">
-                <div class="card-header-row">
-                    <h3>Provident Fund</h3>
-                    <svg class="card-chevron" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+            <button type="button" class="stmt-row stmt-click" id="pfCard" data-tab-group="benefits" onclick="openPFModal()" title="Click for Monthly Ledger">
+                <div class="stmt-head">
+                    <h3 class="stmt-title">Provident Fund</h3>
+                    <div class="val"><span class="val-unit">Net Closing Balance (PKR)</span><span class="val-num" id="pfTotal">0</span></div>
                 </div>
-                <div class="val" style="margin-bottom: 15px;"><span class="val-unit">Net Closing Balance (PKR)</span><span class="val-num" id="pfTotal">0</span></div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: var(--fs-label);">
-                    <div><span style="color: var(--text-secondary);">Employee Cont.</span><br><strong id="pfEmployee" style="color: var(--text-primary);">0</strong></div>
-                    <div id="pfEmployerBox"><span style="color: var(--text-secondary);">Employer Cont.</span><br><strong id="pfEmployer" style="color: var(--text-primary);">0</strong></div>
-                    <div><span style="color: var(--text-secondary);">Acc. Profits</span><br><strong id="pfProfit" style="color: var(--krn-green);">0</strong></div>
-                    <div><span style="color: var(--text-secondary);">Total Withdrawals</span><br><strong id="pfWithdrawal" style="color: var(--krn-orange);">0</strong></div>
+                <div class="stmt-body">
+                    <div class="stmt-stats">
+                        <div><span class="stat-lbl">Employee Cont.</span><strong class="stat-val" id="pfEmployee">0</strong></div>
+                        <div id="pfEmployerBox"><span class="stat-lbl">Employer Cont.</span><strong class="stat-val" id="pfEmployer">0</strong></div>
+                        <div><span class="stat-lbl">Acc. Profits</span><strong class="stat-val" id="pfProfit" style="color: var(--ok);">0</strong></div>
+                        <div><span class="stat-lbl">Total Withdrawals</span><strong class="stat-val" id="pfWithdrawal" style="color: var(--over);">0</strong></div>
+                    </div>
                 </div>
+                <svg class="stmt-chevron" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+            </button>
+
+            <!-- 2. Gratuity -->
+            <button type="button" class="stmt-row stmt-click" id="gratuityCard" data-tab-group="benefits" onclick="openGratuityModal()" title="Click for accrual detail">
+                <div class="stmt-head">
+                    <h3 class="stmt-title">Gratuity Payable</h3>
+                    <div class="val"><span class="val-unit">Accrued Amount (PKR)</span><span class="val-num" id="gratuityTotal">0</span></div>
+                </div>
+                <div class="stmt-body">
+                    <div class="stmt-stats" id="gratuityBreakdown">
+                        <!-- Years served + rate injected by JS -->
+                    </div>
+                    <div class="stmt-note">
+                        <strong id="gratuityTenure" style="color: var(--text-primary);">&mdash;</strong> of service &middot; Base Salary &divide; 2 per year, counted from Jul 2023 (or joining date if later)
+                    </div>
+                </div>
+                <svg class="stmt-chevron" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
             </button>
 
             <!-- 3. Training & Development -->
-            <button type="button" class="click-card" id="trainingCard" data-tab-group="benefits" onclick="openTrainingModal()" title="Click for accrual detail">
-                <div class="card-header-row">
-                    <h3>Accrued Training Budget</h3>
-                    <svg class="card-chevron" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+            <button type="button" class="stmt-row stmt-click" id="trainingCard" data-tab-group="benefits" onclick="openTrainingModal()" title="Click for accrual detail">
+                <div class="stmt-head">
+                    <h3 class="stmt-title">Accrued Training Budget</h3>
                     <div class="val"><span class="val-unit">Available Limit (PKR)</span><span class="val-num" id="trainAvailable">0</span></div>
-                    <div style="text-align: right; font-size: var(--fs-label);">
-                        <span style="color: var(--text-secondary);">Accrued:</span> <strong id="trainAccrued">0</strong><br>
-                        <span style="color: var(--text-secondary);">Utilized:</span> <strong id="trainUtilized">0</strong>
+                </div>
+                <div class="stmt-body">
+                    <div class="stmt-stats">
+                        <div><span class="stat-lbl">Accrued</span><strong class="stat-val" id="trainAccrued">0</strong></div>
+                        <div><span class="stat-lbl">Utilized</span><strong class="stat-val" id="trainUtilized">0</strong></div>
+                        <div><span class="stat-lbl">Entitlement (p.a.)</span><strong class="stat-val" id="trainEntitlement">0</strong></div>
+                    </div>
+                    <div class="stmt-bar-wrap">
+                        <div class="stmt-bar"><div id="trainUtilBar" class="stmt-bar-fill" style="width: 0%; background: var(--krn-orange);"></div></div>
+                        <span class="stmt-bar-label" id="trainUtilPercent">0% utilized</span>
+                    </div>
+                    <div id="trainingWarning" class="stmt-warning" style="display: none;">
+                        <strong>Advance Utilized:</strong> You have dipped into un-accrued funds. A Training Bond is currently active.
+                        <div id="trainingRecovery" style="margin-top: 6px;"></div>
                     </div>
                 </div>
-                <div style="height: 8px; background: rgba(0,0,0,0.08); border-radius: 4px; margin-top: 16px; overflow: hidden;">
-                    <div id="trainUtilBar" style="height: 100%; width: 0%; background: var(--krn-orange); border-radius: 4px;"></div>
-                </div>
-                <div style="display: flex; justify-content: space-between; font-size: var(--fs-note); color: var(--text-secondary); margin-top: 6px;">
-                    <span id="trainUtilPercent">0% utilized</span>
-                    <span>Entitlement: <strong id="trainEntitlement" style="color: var(--text-primary);">0</strong></span>
-                </div>
-                <div id="trainingWarning" style="display: none; background: rgba(249, 115, 22, 0.1); color: var(--krn-orange); padding: 10px 12px; border-radius: 6px; font-size: var(--fs-note); margin-top: 15px; border: 1px solid var(--krn-orange); text-align: left; line-height: 1.45;">
-                    <strong>Advance Utilized:</strong> You have dipped into un-accrued funds. A Training Bond is currently active.
-                    <div id="trainingRecovery" style="margin-top: 6px;"></div>
-                </div>
-            </button>
-
-            <!-- 6. Tax Certificate -->
-            <div class="bento-card" data-tab-group="documents">
-                <h3 style="margin: 0 0 15px 0; color: var(--text-primary); font-size: var(--fs-title); border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Tax Certificates</h3>
-                <p style="font-size: var(--fs-label); color: var(--text-secondary); margin-top: 0;">Generate your official Section 149 Tax Deduction Certificate.</p>
-                <select id="taxYearSelect" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-page); color: var(--text-primary); margin-bottom: 15px;">
-                    <option value="FY2027">July 2026 - June 2027</option>
-                    <option value="FY2026">July 2025 - June 2026</option>
-                </select>
-                <button onclick="generateTaxPDF()" style="background: transparent; color: var(--krn-blue); border: 1px solid var(--krn-blue); padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%;">Generate PDF &darr;</button>
-            </div>
-
-            </div>
-            <div class="grid-col">
-
-            <!-- 2. Gratuity -->
-            <button type="button" class="click-card" id="gratuityCard" data-tab-group="benefits" onclick="openGratuityModal()" title="Click for accrual detail">
-                <div class="card-header-row">
-                    <h3>Gratuity Payable</h3>
-                    <svg class="card-chevron" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: flex-end;">
-                    <div class="val"><span class="val-unit">Accrued Amount (PKR)</span><span class="val-num" id="gratuityTotal">0</span></div>
-                    <div id="gratuityBreakdown" style="text-align: right; font-size: var(--fs-label);">
-                        <!-- Breakdown injected by JS -->
-                    </div>
-                </div>
-                <div style="font-size: var(--fs-note); color: var(--text-secondary); margin-top: 16px;">
-                    <strong id="gratuityTenure" style="color: var(--text-primary);">&mdash;</strong> of service &middot; accrues at Base Salary &divide; 2 per year (from Jul 2023 or joining date, whichever is later)
-                </div>
+                <svg class="stmt-chevron" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
             </button>
 
             <!-- 4. Salary Advances -->
-            <button type="button" class="click-card" id="advancesCard" data-tab-group="money" title="Click for advances ledger">
-                <div class="card-header-row">
-                    <h3>Salary Advances</h3>
-                    <svg class="card-chevron" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+            <button type="button" class="stmt-row stmt-click" id="advancesCard" data-tab-group="money" title="Click for advances ledger">
+                <div class="stmt-head">
+                    <h3 class="stmt-title">Salary Advances</h3>
+                    <div class="val">
+                        <span class="val-unit">Max Available Limit (PKR)<span class="info-tip" title="Calculation: Min(Base Salary × 5, PF Balance × 60%) minus active advances. Maximum 3 active advances allowed.">&#8505;&#65039;</span></span>
+                        <span class="val-num" id="advLimit">0</span>
+                    </div>
+                    <div class="stmt-subnote">Capped by: <strong id="advCapReason">&mdash;</strong></div>
                 </div>
-                <div style="font-size: var(--fs-label); color: var(--text-secondary); margin-bottom: 5px; display: flex; align-items: center;">
-                    Max Available Limit (PKR)
-                    <span style="margin-left:5px; cursor:help; font-size:0.9rem;" title="Calculation: Min(Base Salary × 5, PF Balance × 60%) minus active advances. Maximum 3 active advances allowed.">&#8505;&#65039;</span>
+                <div class="stmt-body">
+                    <div id="activeAdvancesContainer">
+                        <!-- Advance columns injected by JS -->
+                    </div>
                 </div>
-                <div class="val-num" id="advLimit" style="margin-bottom: 4px;">0</div>
-                <div style="font-size: var(--fs-label); color: var(--text-secondary); margin-bottom: 15px;">Capped by: <strong id="advCapReason" style="color: var(--text-primary);">&mdash;</strong></div>
-                <div id="activeAdvancesContainer">
-                    <!-- Progress bars injected by JS -->
-                </div>
+                <svg class="stmt-chevron" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
             </button>
 
-            <!-- 7. Lease Finance Limit -->
-            <div class="bento-card" id="leaseCard" data-tab-group="money">
-                <h3 style="margin: 0 0 15px 0; color: var(--text-primary); font-size: var(--fs-title); border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Lease Finance Limit (LFL)</h3>
-                <div class="val"><span class="val-unit">Max Vehicle Lease (PKR)</span><span class="val-num" id="leaseLimit">0</span></div>
-                <div style="font-size: var(--fs-note); color: var(--text-secondary); margin-top: 10px;">Calculation: (PF + Gratuity) - (Advances + Overage Training)</div>
+            <!-- 5. Lease Finance Limit -->
+            <div class="stmt-row" id="leaseCard" data-tab-group="money">
+                <div class="stmt-head">
+                    <h3 class="stmt-title">Lease Finance Limit (LFL)</h3>
+                    <div class="val"><span class="val-unit">Max Vehicle Lease (PKR)</span><span class="val-num" id="leaseLimit">0</span></div>
+                </div>
+                <div class="stmt-body">
+                    <div class="stmt-note">Calculation: (PF + Gratuity) &minus; (Advances + Overage Training + Lease already availed)</div>
+                </div>
             </div>
 
+            <!-- 6. Tax Certificate -->
+            <div class="stmt-row" data-tab-group="documents">
+                <div class="stmt-head">
+                    <h3 class="stmt-title">Tax Certificates</h3>
+                    <div class="stmt-note">Generate your official Section 149 Tax Deduction Certificate.</div>
+                </div>
+                <div class="stmt-body">
+                    <div class="stmt-actions">
+                        <select id="taxYearSelect" class="stmt-select" aria-label="Tax year">
+                            <option value="FY2027">July 2026 - June 2027</option>
+                            <option value="FY2026">July 2025 - June 2026</option>
+                        </select>
+                        <button type="button" class="stmt-btn" onclick="generateTaxPDF()">Generate PDF &darr;</button>
+                    </div>
+                </div>
             </div>
 
-            <!-- 5. Expense Claims — temporarily hidden from the UI (per request).
+            <!-- Expense Claims — temporarily hidden from the UI (per request).
                  The data (Expenses.csv), API field (myExpenses), rendering logic
                  in portal_app.js, and the openExpensesModal() modal are all still
                  fully intact — nothing else needs to change to bring this back.
-                 To re-enable: uncomment the <button> block below and place it
-                 inside whichever <div class="grid-col"> you want it to stack in.
-            <button type="button" class="click-card" id="expensesCard" onclick="openExpensesModal()" title="Click for claim history">
-                <div class="card-header-row">
-                    <h3>Expense Claims</h3>
-                    <svg class="card-chevron" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+                 To re-enable: uncomment the block below (move it where you want it in the list).
+            <button type="button" class="stmt-row stmt-click" id="expensesCard" data-tab-group="money" onclick="openExpensesModal()" title="Click for claim history">
+                <div class="stmt-head">
+                    <h3 class="stmt-title">Expense Claims</h3>
+                    <div class="val"><span class="val-unit">Reimbursed (PKR)</span><span class="val-num" id="expPaidTotal">0</span></div>
                 </div>
-                <div class="val" style="margin-bottom: 15px;"><span class="val-unit">Reimbursed (PKR)</span><span class="val-num" id="expPaidTotal">0</span></div>
-                <div style="display: flex; justify-content: space-between; align-items: baseline; font-size: var(--fs-label);">
-                    <span style="color: var(--text-secondary);">Pending: <strong id="expPendingCount" style="color: var(--text-primary);">0</strong> claim(s)</span>
-                    <strong id="expPendingAmount" style="color: var(--krn-orange);">0</strong>
+                <div class="stmt-body">
+                    <div class="stmt-stats">
+                        <div><span class="stat-lbl">Pending claims</span><strong class="stat-val" id="expPendingCount">0</strong></div>
+                        <div><span class="stat-lbl">Pending amount (PKR)</span><strong class="stat-val" id="expPendingAmount" style="color: var(--over);">0</strong></div>
+                    </div>
                 </div>
+                <svg class="stmt-chevron" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
             </button>
             -->
 

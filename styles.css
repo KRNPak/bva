@@ -18,6 +18,9 @@
     --behind-dark: #f2b632;
     --over-dark: #ff7a45;
     --neutral-dark: #6b7580;
+    --track-dark: #2a3037;
+    --accent-dark: #5bb8de;
+    --accent-soft-dark: rgba(91, 184, 222, 0.14);
     
     --badge-primary: rgba(0, 104, 144, 0.2); 
     --badge-orange: rgba(249, 115, 22, 0.15);
@@ -37,6 +40,9 @@
     --behind-light: #b07c00;
     --over-light: #d9480f;
     --neutral-light: #8a96a3;
+    --track-light: #dde4ec;
+    --accent-light: #006890;
+    --accent-soft-light: rgba(0, 104, 144, 0.09);
 
     --font-num: 'Oswald', 'Arial Narrow', 'Segoe UI', sans-serif;
     --radius-card: 10px;
@@ -57,6 +63,9 @@ body {
     --behind: var(--behind-dark);
     --over: var(--over-dark);
     --neutral: var(--neutral-dark);
+    --track: var(--track-dark);
+    --accent: var(--accent-dark);
+    --accent-soft: var(--accent-soft-dark);
 
     font-family: Calibri, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     font-weight: 300;
@@ -93,6 +102,9 @@ body.light-mode {
     --behind: var(--behind-light);
     --over: var(--over-light);
     --neutral: var(--neutral-light);
+    --track: var(--track-light);
+    --accent: var(--accent-light);
+    --accent-soft: var(--accent-soft-light);
 }
 
 * { box-sizing: border-box; }

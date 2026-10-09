@@ -348,8 +348,8 @@ function renderDashboard() {
         if(document.getElementById('gratuityTotal')) animateValue('gratuityTotal', gratTotal);
         if(gratBreakdownEl) {
             gratBreakdownEl.innerHTML = `
-                <span style="color: var(--text-secondary);">Years Served:</span> <strong>${gratYearsServed.toFixed(2)}</strong><br>
-                <span style="color: var(--text-secondary);">Rate (Base Salary &divide; 2):</span> <strong>${Math.round(baseSalary / 2).toLocaleString('en-PK')}</strong>
+                <div><span class="stat-lbl">Years Served</span><strong class="stat-val">${gratYearsServed.toFixed(2)}</strong></div>
+                <div><span class="stat-lbl">Rate (Base Salary &divide; 2)</span><strong class="stat-val">${Math.round(baseSalary / 2).toLocaleString('en-PK')}</strong></div>
             `;
         }
     }
@@ -381,7 +381,7 @@ function renderDashboard() {
     if (advancesContainer) {
         advancesContainer.innerHTML = ''; 
         if (validAdvances.length > 0) {
-            let advancesHTML = '<div style="margin-top: 15px;">';
+            let advancesHTML = '<div class="stmt-advances">';
             
             validAdvances.forEach((adv, index) => {
                 let rawA = adv._raw || adv;
@@ -405,21 +405,18 @@ function renderDashboard() {
                 }
                 
                 advancesHTML += `
-                    <div style="margin-bottom: 12px;">
-                        <div style="display: flex; justify-content: space-between; align-items: baseline; font-size: var(--fs-label); margin-bottom: 4px;">
-                            <span style="color: var(--text-secondary);">Advance ${index + 1} Balance${advDateDisplay ? ` <span style="font-size: var(--fs-note);">&middot; Deductions from ${advDateDisplay}</span>` : ''}</span>
-                            <strong style="color: var(--krn-orange);">${Math.round(balance).toLocaleString('en-PK')} PKR</strong>
-                        </div>
-                        <div style="width: 100%; background: rgba(0,0,0,0.1); border-radius: 4px; height: 6px; overflow: hidden;">
-                            <div style="width: ${percent}%; background: var(--krn-blue); height: 100%; border-radius: 4px;"></div>
-                        </div>
+                    <div class="adv-item">
+                        <span class="stat-lbl">Advance ${index + 1} balance</span>
+                        <strong class="stat-val">${Math.round(balance).toLocaleString('en-PK')}<small>PKR</small></strong>
+                        <div class="stmt-bar"><div class="stmt-bar-fill" style="width: ${Math.min(100, percent)}%; background: var(--krn-blue);"></div></div>
+                        <div class="stmt-note">${advDateDisplay ? 'Deductions from <span style="white-space: nowrap;">' + advDateDisplay + '</span>' : ''}</div>
                     </div>
                 `;
             });
             advancesHTML += '</div>';
             advancesContainer.innerHTML = advancesHTML;
         } else {
-            advancesContainer.innerHTML = '<div style="margin-top: 15px; font-size: var(--fs-label); color: var(--text-secondary);">No active advances.</div>';
+            advancesContainer.innerHTML = '<div class="stmt-note" style="font-size: var(--fs-label);">No active advances.</div>';
         }
     }
 
