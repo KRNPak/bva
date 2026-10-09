@@ -39,31 +39,106 @@ function getTrainingRecovery(overage, annualBudget, today) {
     return { days, date, text: `${formatDurationFromDays(days)} (approx. ${formatShortDate(date)})` };
 }
 
-// Advances.csv has 12 month-deduction columns headed by Excel serial-date
-// numbers (e.g. "46204" = 01-Jul-2026). The old code tried to sum
-// "every column after Settled outside of payroll" by position in
-// Object.keys() — but JavaScript automatically reorders integer-like
-// object keys to the FRONT of enumeration, regardless of insertion order.
-// That silently made settleIdx land on the last key every time, so the
-// month-wise deductions were never actually added — only "Previously
-// settled" (prior-FY) ever counted. This identifies month columns by
-// pattern instead of position, and only counts a month once its date has
-// arrived (future scheduled deductions aren't "settled" yet).
-function getAdvanceSettledAmount(rawA) {
-    let histSettled = getSafeNum(rawA['Previously settled']) + getSafeNum(rawA['Settled outside of payroll']);
-    let today = new Date();
-    let currentFYDeductions = 0;
+// ---------------------------------------------------------------------------
+// Tolerant date + month-column handling.
+// CSVs get re-saved from Excel in different regional formats (17/10/2025,
+// 17-10-2025, 17-Oct-2025, 2025-10-17 ...), so nothing here assumes a single
+// format. Ambiguous numeric dates are read as dd/mm/yyyy, like the rest of the
+// data. (The same logic lives in api/admin-summary.js — keep the two in sync.)
+// ---------------------------------------------------------------------------
+const MONTH_INDEX = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+function monthFromName(s) { return MONTH_INDEX[String(s).slice(0, 3).toLowerCase()]; }
+function expandYear(y) { y = parseInt(y, 10); return y < 100 ? 2000 + y : y; }
+function makeValidDate(y, mi, d) {
+    const dt = new Date(y, mi, d);
+    return (dt.getFullYear() === y && dt.getMonth() === mi && dt.getDate() === d) ? dt : null;
+}
 
+function parseFlexibleDate(value) {
+    if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
+    const s = String(value == null ? '' : value).trim();
+    if (!s) return null;
+    let m;
+    // yyyy-mm-dd
+    if ((m = s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/))) return makeValidDate(+m[1], +m[2] - 1, +m[3]);
+    // dd-mm-yyyy, dd/mm/yyyy, dd.mm.yyyy (2- or 4-digit year)
+    if ((m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2}|\d{4})$/))) {
+        let day = +m[1], month = +m[2];
+        if (month > 12 && day <= 12) { const t = day; day = month; month = t; } // clearly mm/dd
+        return makeValidDate(expandYear(m[3]), month - 1, day);
+    }
+    // dd-Mon-yyyy, dd Month yyyy
+    if ((m = s.match(/^(\d{1,2})[-\/.\s]+([A-Za-z]{3,9})[-\/.,\s']+(\d{2}|\d{4})$/)) && monthFromName(m[2]) !== undefined) {
+        return makeValidDate(expandYear(m[3]), monthFromName(m[2]), +m[1]);
+    }
+    return null;
+}
+
+// Month a deduction column belongs to, from its header (first day of that month),
+// or null if the header isn't a recognisable month/date.
+function parseMonthHeader(header) {
+    const s = String(header == null ? '' : header).replace(/\s+/g, ' ').trim();
+    if (!s) return null;
+    let m;
+    // Excel serial date, e.g. 46204 = 01-Jul-2026
+    if (/^\d{5}$/.test(s)) {
+        const n = parseInt(s, 10);
+        if (n < 30000 || n > 70000) return null;
+        const d = new Date(Date.UTC(1899, 11, 30) + n * 86400000);
+        return new Date(d.getUTCFullYear(), d.getUTCMonth(), 1);
+    }
+    // Jul-26, Jul-2026, Sept-26, July 2026, Jul'26
+    if ((m = s.match(/^([A-Za-z]{3,9})[-\/.\s']*(\d{2}|\d{4})$/)) && monthFromName(m[1]) !== undefined) {
+        return new Date(expandYear(m[2]), monthFromName(m[1]), 1);
+    }
+    // 2026-07, 2026/07
+    if ((m = s.match(/^(\d{4})[-\/.](\d{1,2})$/)) && +m[2] >= 1 && +m[2] <= 12) return new Date(+m[1], +m[2] - 1, 1);
+    // 07-2026
+    if ((m = s.match(/^(\d{1,2})[-\/.](\d{4})$/)) && +m[1] >= 1 && +m[1] <= 12) return new Date(+m[2], +m[1] - 1, 1);
+    // Numeric a/b/yyyy: month columns are always the 1st of a month, so whichever
+    // part is "1" is the day (01/07/2026 -> July; 7/1/2026 -> July as well).
+    if ((m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2}|\d{4})$/))) {
+        const a = +m[1], b = +m[2], y = expandYear(m[3]);
+        if (a === 1 && b >= 1 && b <= 12) return new Date(y, b - 1, 1);
+        if (b === 1 && a >= 1 && a <= 12) return new Date(y, a - 1, 1);
+    }
+    // Any other full date (31/07/2026, 2026-07-01, 01-Jul-26): use its month
+    const d = parseFlexibleDate(s);
+    return d ? new Date(d.getFullYear(), d.getMonth(), 1) : null;
+}
+
+const ADVANCE_FIXED_FIELDS = new Set(['code', 'employee', 'tenure (months)', 'tenure(months)', 'grace period',
+    'date of advance', 'advances', 'previously settled', 'settled outside of payroll']);
+
+// How much of an advance has been settled so far = prior settlements + the
+// payroll deductions for every month that has FINISHED (this month's payroll
+// hasn't run yet, so it isn't counted until the month is over — erring on the
+// side of showing a slightly higher balance, never a lower one).
+function getAdvanceSettledAmount(rawA, today) {
+    today = today || new Date();
+    const histSettled = getSafeNum(rawA['Previously settled']) + getSafeNum(rawA['Settled outside of payroll']);
+    const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+
+    let monthCols = [], otherCols = [];
     Object.keys(rawA).forEach(key => {
-        let trimmedKey = key.trim();
-        if (!/^\d{4,6}$/.test(trimmedKey)) return; // not a serial-date column
-        let serial = parseInt(trimmedKey, 10);
-        let monthDate = new Date(Date.UTC(1899, 11, 30) + serial * 86400000);
-        if (monthDate <= today) {
-            currentFYDeductions += getSafeNum(rawA[key]);
-        }
+        const norm = key.replace(/\s+/g, ' ').trim().toLowerCase();
+        if (ADVANCE_FIXED_FIELDS.has(norm)) return;
+        const d = parseMonthHeader(key);
+        if (d) monthCols.push({ key, date: d }); else otherCols.push(key);
     });
 
+    // Safety net: no header looked like a month, but there are exactly 12 other
+    // columns -> treat them as Jul..Jun of the current fiscal year, in file order.
+    if (monthCols.length === 0 && otherCols.length === 12) {
+        const fyYear = today.getMonth() < 6 ? today.getFullYear() - 1 : today.getFullYear();
+        monthCols = otherCols.map((key, i) => ({ key, date: new Date(fyYear, 6 + i, 1) }));
+        if (typeof console !== 'undefined') console.warn('Advances: month headers not recognised; assumed Jul-Jun in file order.', otherCols);
+    } else if (monthCols.length === 0 && otherCols.length > 0 && typeof console !== 'undefined') {
+        console.warn('Advances: could not identify month columns in headers:', otherCols);
+    }
+
+    let currentFYDeductions = 0;
+    monthCols.forEach(c => { if (c.date < thisMonthStart) currentFYDeductions += getSafeNum(rawA[c.key]); });
     return histSettled + currentFYDeductions;
 }
 
@@ -168,11 +243,10 @@ function renderDashboard() {
     let joinDateObj = new Date();
     let formattedJoinDate = "N/A";
     if (joinDateStr) {
-        let parts = joinDateStr.split('/');
-        if (parts.length === 3) {
-            joinDateObj = new Date(parts[2], parts[1] - 1, parts[0]);
-            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-            formattedJoinDate = `${parts[0]}-${months[joinDateObj.getMonth()]}-${parts[2]}`;
+        let parsedJoin = parseFlexibleDate(joinDateStr);
+        if (parsedJoin) {
+            joinDateObj = parsedJoin;
+            formattedJoinDate = formatShortDate(parsedJoin);
         }
     }
 
@@ -394,14 +468,11 @@ function renderDashboard() {
 
                 let advDateStr = rawA['Date of advance'] || '';
                 let advDateDisplay = advDateStr;
-                let dParts = String(advDateStr).split('/');
-                if (dParts.length === 3) {
-                    const monthsShort = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-                    let gracePeriodMonths = getSafeNum(rawA['Grace period']);
-                    let startDateObj = new Date(dParts[2], parseInt(dParts[1], 10) - 1, parseInt(dParts[0], 10));
-                    startDateObj.setMonth(startDateObj.getMonth() + gracePeriodMonths);
-                    let dd = String(startDateObj.getDate()).padStart(2, '0');
-                    advDateDisplay = `${dd}-${monthsShort[startDateObj.getMonth()]}-${startDateObj.getFullYear()}`;
+                let advDateObj = parseFlexibleDate(advDateStr);
+                if (advDateObj) {
+                    let startDateObj = new Date(advDateObj.getTime());
+                    startDateObj.setMonth(startDateObj.getMonth() + getSafeNum(rawA['Grace period']));
+                    advDateDisplay = formatShortDate(startDateObj);
                 }
                 
                 advancesHTML += `
@@ -620,7 +691,7 @@ function openAdvancesModal() {
 
         rows += `
             <tr style="border-bottom: 1px solid var(--border-color);">
-                <td style="padding:8px 0;">Advance ${i+1}<br><small style="color:var(--text-secondary);">${rawA['Date of advance'] || '-'}</small></td>
+                <td style="padding:8px 0;">Advance ${i+1}<br><small style="color:var(--text-secondary);">${(() => { const d = parseFlexibleDate(rawA['Date of advance']); return d ? formatShortDate(d) : (rawA['Date of advance'] || '-'); })()}</small></td>
                 <td style="padding:8px 0; text-align:right;">${Math.round(amt).toLocaleString('en-PK')}</td>
                 <td style="padding:8px 0; text-align:right;">${Math.round(totalSettled).toLocaleString('en-PK')}</td>
                 <td style="padding:8px 0; text-align:right; font-weight:bold; color:var(--krn-orange);">${Math.round(balance).toLocaleString('en-PK')}</td>
@@ -736,8 +807,8 @@ function openGratuityModal() {
 
     let joinDateObj = new Date();
     let joinDateStr = rawEmp['Joining Date'] || "";
-    let joinParts = String(joinDateStr).split('/');
-    if (joinParts.length === 3) joinDateObj = new Date(joinParts[2], joinParts[1] - 1, joinParts[0]);
+    let parsedJoinForModal = parseFlexibleDate(joinDateStr);
+    if (parsedJoinForModal) joinDateObj = parsedJoinForModal;
 
     let gratAnchorDate = new Date(2023, 6, 1); // 1 July 2023
     let gratStartDate = joinDateObj > gratAnchorDate ? joinDateObj : gratAnchorDate;
