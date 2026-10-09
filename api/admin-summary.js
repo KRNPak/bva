@@ -27,26 +27,107 @@ function filterByEmpCode(rows, code) {
     });
 }
 
-function parseDDMMYYYY(str) {
-    if (!str) return null;
-    let parts = String(str).split('/');
-    if (parts.length !== 3) return null;
-    let d = new Date(parts[2], parts[1] - 1, parts[0]);
-    return isNaN(d.getTime()) ? null : d;
+// ---------------------------------------------------------------------------
+// Tolerant date + month-column handling.
+// CSVs get re-saved from Excel in different regional formats (17/10/2025,
+// 17-10-2025, 17-Oct-2025, 2025-10-17 ...), so nothing here assumes a single
+// format. Ambiguous numeric dates are read as dd/mm/yyyy, like the rest of the
+// data. (The same logic lives in portal_app.js — keep the two in sync.)
+// ---------------------------------------------------------------------------
+const MONTH_INDEX = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+function monthFromName(s) { return MONTH_INDEX[String(s).slice(0, 3).toLowerCase()]; }
+function expandYear(y) { y = parseInt(y, 10); return y < 100 ? 2000 + y : y; }
+function makeValidDate(y, mi, d) {
+    const dt = new Date(y, mi, d);
+    return (dt.getFullYear() === y && dt.getMonth() === mi && dt.getDate() === d) ? dt : null;
 }
 
-// Same "identify month columns by pattern, not position" fix already
-// shipped for the per-employee Advances calculation — see portal_app.js.
+function parseFlexibleDate(value) {
+    if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
+    const s = String(value == null ? '' : value).trim();
+    if (!s) return null;
+    let m;
+    // yyyy-mm-dd
+    if ((m = s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/))) return makeValidDate(+m[1], +m[2] - 1, +m[3]);
+    // dd-mm-yyyy, dd/mm/yyyy, dd.mm.yyyy (2- or 4-digit year)
+    if ((m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2}|\d{4})$/))) {
+        let day = +m[1], month = +m[2];
+        if (month > 12 && day <= 12) { const t = day; day = month; month = t; } // clearly mm/dd
+        return makeValidDate(expandYear(m[3]), month - 1, day);
+    }
+    // dd-Mon-yyyy, dd Month yyyy
+    if ((m = s.match(/^(\d{1,2})[-\/.\s]+([A-Za-z]{3,9})[-\/.,\s']+(\d{2}|\d{4})$/)) && monthFromName(m[2]) !== undefined) {
+        return makeValidDate(expandYear(m[3]), monthFromName(m[2]), +m[1]);
+    }
+    return null;
+}
+
+// Month a deduction column belongs to, from its header (first day of that month),
+// or null if the header isn't a recognisable month/date.
+function parseMonthHeader(header) {
+    const s = String(header == null ? '' : header).replace(/\s+/g, ' ').trim();
+    if (!s) return null;
+    let m;
+    // Excel serial date, e.g. 46204 = 01-Jul-2026
+    if (/^\d{5}$/.test(s)) {
+        const n = parseInt(s, 10);
+        if (n < 30000 || n > 70000) return null;
+        const d = new Date(Date.UTC(1899, 11, 30) + n * 86400000);
+        return new Date(d.getUTCFullYear(), d.getUTCMonth(), 1);
+    }
+    // Jul-26, Jul-2026, Sept-26, July 2026, Jul'26
+    if ((m = s.match(/^([A-Za-z]{3,9})[-\/.\s']*(\d{2}|\d{4})$/)) && monthFromName(m[1]) !== undefined) {
+        return new Date(expandYear(m[2]), monthFromName(m[1]), 1);
+    }
+    // 2026-07, 2026/07
+    if ((m = s.match(/^(\d{4})[-\/.](\d{1,2})$/)) && +m[2] >= 1 && +m[2] <= 12) return new Date(+m[1], +m[2] - 1, 1);
+    // 07-2026
+    if ((m = s.match(/^(\d{1,2})[-\/.](\d{4})$/)) && +m[1] >= 1 && +m[1] <= 12) return new Date(+m[2], +m[1] - 1, 1);
+    // Numeric a/b/yyyy: month columns are always the 1st of a month, so whichever
+    // part is "1" is the day (01/07/2026 -> July; 7/1/2026 -> July as well).
+    if ((m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2}|\d{4})$/))) {
+        const a = +m[1], b = +m[2], y = expandYear(m[3]);
+        if (a === 1 && b >= 1 && b <= 12) return new Date(y, b - 1, 1);
+        if (b === 1 && a >= 1 && a <= 12) return new Date(y, a - 1, 1);
+    }
+    // Any other full date (31/07/2026, 2026-07-01, 01-Jul-26): use its month
+    const d = parseFlexibleDate(s);
+    return d ? new Date(d.getFullYear(), d.getMonth(), 1) : null;
+}
+
+const ADVANCE_FIXED_FIELDS = new Set(['code', 'employee', 'tenure (months)', 'tenure(months)', 'grace period',
+    'date of advance', 'advances', 'previously settled', 'settled outside of payroll']);
+
+// (Returns the breakdown here; the portal copy returns just the total.)
+// How much of an advance has been settled so far = prior settlements + the
+// payroll deductions for every month that has FINISHED (this month's payroll
+// hasn't run yet, so it isn't counted until the month is over — erring on the
+// side of showing a slightly higher balance, never a lower one).
 function getAdvanceSettledAmount(rawA, today) {
-    let histSettled = getSafeNum(rawA['Previously settled']) + getSafeNum(rawA['Settled outside of payroll']);
-    let currentFYDeductions = 0;
+    today = today || new Date();
+    const histSettled = getSafeNum(rawA['Previously settled']) + getSafeNum(rawA['Settled outside of payroll']);
+    const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+
+    let monthCols = [], otherCols = [];
     Object.keys(rawA).forEach(key => {
-        let trimmedKey = key.trim();
-        if (!/^\d{4,6}$/.test(trimmedKey)) return;
-        let serial = parseInt(trimmedKey, 10);
-        let monthDate = new Date(Date.UTC(1899, 11, 30) + serial * 86400000);
-        if (monthDate <= today) currentFYDeductions += getSafeNum(rawA[key]);
+        const norm = key.replace(/\s+/g, ' ').trim().toLowerCase();
+        if (ADVANCE_FIXED_FIELDS.has(norm)) return;
+        const d = parseMonthHeader(key);
+        if (d) monthCols.push({ key, date: d }); else otherCols.push(key);
     });
+
+    // Safety net: no header looked like a month, but there are exactly 12 other
+    // columns -> treat them as Jul..Jun of the current fiscal year, in file order.
+    if (monthCols.length === 0 && otherCols.length === 12) {
+        const fyYear = today.getMonth() < 6 ? today.getFullYear() - 1 : today.getFullYear();
+        monthCols = otherCols.map((key, i) => ({ key, date: new Date(fyYear, 6 + i, 1) }));
+        if (typeof console !== 'undefined') console.warn('Advances: month headers not recognised; assumed Jul-Jun in file order.', otherCols);
+    } else if (monthCols.length === 0 && otherCols.length > 0 && typeof console !== 'undefined') {
+        console.warn('Advances: could not identify month columns in headers:', otherCols);
+    }
+
+    let currentFYDeductions = 0;
+    monthCols.forEach(c => { if (c.date < thisMonthStart) currentFYDeductions += getSafeNum(rawA[c.key]); });
     return { histSettled, currentFYDeductions, total: histSettled + currentFYDeductions };
 }
 
@@ -95,7 +176,7 @@ module.exports = async (req, res) => {
             const baseSalary = getSafeNum(emp.basesalary);
 
             // Tenure
-            const joinDateObj = parseDDMMYYYY(emp.joiningdate || (emp._raw && emp._raw['Joining Date']));
+            const joinDateObj = parseFlexibleDate(emp.joiningdate || (emp._raw && emp._raw['Joining Date']));
             let tenureMonths = 0;
             if (joinDateObj) {
                 tenureMonths = (today.getFullYear() - joinDateObj.getFullYear()) * 12;
@@ -154,7 +235,7 @@ module.exports = async (req, res) => {
                 const balance = Math.max(0, advAmount - totalSettled);
                 existingAdvancesAmount += balance;
 
-                const dateOfAdvance = parseDDMMYYYY(raw['Date of advance']);
+                const dateOfAdvance = parseFlexibleDate(raw['Date of advance']);
                 const isNewThisFY = dateOfAdvance && dateOfAdvance >= fyStart;
                 if (isNewThisFY) {
                     advNew += advAmount;
